@@ -1321,6 +1321,7 @@ class NEATAgent {
       values[nodeId] = 1 / (1 + Math.exp(-sum));
     }
 
+    this._lastNodeValues = values;
     const outStart = this.sd + 1;
     return [values[outStart], values[outStart + 1]];
   }
@@ -1361,9 +1362,10 @@ class NEATAgent {
     this.episodeRewards.push(bestFitness);
     if (bestFitness > this.bestReward) this.bestReward = bestFitness;
 
-    if (this.episodeRewards.length >= 20) {
-      const last20 = this.episodeRewards.slice(-20);
-      if (last20.reduce((a, b) => a + b) / 20 >= SOLVE_THRESHOLD) this.solved = true;
+    // NEAT uses generations (not episodes) — solve with shorter window since each gen is expensive
+    if (this.episodeRewards.length >= 10) {
+      const recent = this.episodeRewards.slice(-10);
+      if (recent.reduce((a, b) => a + b) / 10 >= SOLVE_THRESHOLD) this.solved = true;
     }
     return bestFitness;
   }
@@ -1719,7 +1721,7 @@ function initAlgoState() {
   const algos = getAlgos();
   for (const key of Object.keys(algoState)) delete algoState[key];
   for (const algo of algos) {
-    algoState[algo] = { agent: createAgent(algo), snapshots: [], selectedEpisode: null, snapshotInterval: 50 };
+    algoState[algo] = { agent: createAgent(algo), snapshots: [], selectedEpisode: null, snapshotInterval: algo === 'neat' ? 1 : 50 };
   }
 }
 initAlgoState();
@@ -1815,6 +1817,10 @@ function loadAlgo(algo) {
     } else if (snaps.length >= 2) {
       algoState[algo].snapshotInterval = snaps[1].episode - snaps[0].episode;
     }
+    // NEAT uses generations (not episodes) — keep interval tight
+    if (algo === 'neat' && algoState[algo].snapshotInterval > 5) {
+      algoState[algo].snapshotInterval = 1;
+    }
     return true;
   } catch (e) {
     console.warn('Load failed for ' + algo + ':', e);
@@ -1826,7 +1832,7 @@ function clearSavedAgent() {
   localStorage.removeItem(storageKey(currentAlgo));
   weightSnapshots = [];
   selectedEpisode = null;
-  snapshotInterval = BASE_SNAPSHOT_INTERVAL;
+  snapshotInterval = currentAlgo === 'neat' ? 1 : BASE_SNAPSHOT_INTERVAL;
   algoState[currentAlgo].snapshots = weightSnapshots;
   algoState[currentAlgo].selectedEpisode = selectedEpisode;
   algoState[currentAlgo].snapshotInterval = snapshotInterval;
@@ -2492,32 +2498,57 @@ function renderNEATGenome(cw, ch) {
     }
   }
 
-  // Draw connections
+  // Node activation values (for live animation)
+  const vals = agent._lastNodeValues;
+  const hasVals = vals && vals.length > 0;
+
+  // Draw connections — brightness shows signal flow (|weight × source activation|)
   for (const conn of genome.connections) {
     if (!conn.enabled) continue;
     const from = nodePos[conn.inNode];
     const to = nodePos[conn.outNode];
     if (!from || !to) continue;
     const w = Math.abs(conn.weight);
-    nnCtx.strokeStyle = conn.weight >= 0 ? 'rgba(100,100,100,' + Math.min(0.8, 0.15 + w * 0.4) + ')'
-      : 'rgba(200,50,50,' + Math.min(0.8, 0.15 + w * 0.4) + ')';
-    nnCtx.lineWidth = Math.max(0.5, Math.min(3, w * 1.5));
+    const srcAct = hasVals ? Math.abs(vals[conn.inNode]) : 0;
+    const signal = Math.min(1, w * srcAct);
+    const baseAlpha = 0.08;
+    const alpha = baseAlpha + signal * 0.72;
+    nnCtx.strokeStyle = conn.weight >= 0
+      ? 'rgba(80,80,80,' + alpha.toFixed(3) + ')'
+      : 'rgba(200,50,50,' + alpha.toFixed(3) + ')';
+    nnCtx.lineWidth = Math.max(0.5, Math.min(3.5, w * 1.5 + signal));
     nnCtx.beginPath();
     nnCtx.moveTo(from.x, from.y);
     nnCtx.lineTo(to.x, to.y);
     nnCtx.stroke();
   }
 
-  // Draw nodes
+  // Draw nodes — radius and brightness pulse with activation
   const r = 7;
   for (const node of genome.nodes) {
     const pos = nodePos[node.id];
     if (!pos) continue;
+    const act = hasVals ? Math.min(1, Math.abs(vals[node.id])) : 0;
+    const rr = r + act * 3;
+    // Base color per type, then lerp toward white with activation
+    let baseR, baseG, baseB;
+    if (node.type === 'input')       { baseR = 74;  baseG = 144; baseB = 217; }
+    else if (node.type === 'bias')   { baseR = 153; baseG = 153; baseB = 153; }
+    else if (node.type === 'output') { baseR = 230; baseG = 126; baseB = 34;  }
+    else                             { baseR = 46;  baseG = 204; baseB = 113; }
+    const lr = Math.round(baseR + (255 - baseR) * act * 0.5);
+    const lg = Math.round(baseG + (255 - baseG) * act * 0.5);
+    const lb = Math.round(baseB + (255 - baseB) * act * 0.5);
+    // Glow
+    if (act > 0.3) {
+      nnCtx.beginPath();
+      nnCtx.arc(pos.x, pos.y, rr + 4, 0, Math.PI * 2);
+      nnCtx.fillStyle = 'rgba(' + baseR + ',' + baseG + ',' + baseB + ',' + (act * 0.25).toFixed(3) + ')';
+      nnCtx.fill();
+    }
     nnCtx.beginPath();
-    nnCtx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
-    nnCtx.fillStyle = node.type === 'input' ? '#4a90d9'
-      : node.type === 'bias' ? '#999'
-      : node.type === 'output' ? '#e67e22' : '#2ecc71';
+    nnCtx.arc(pos.x, pos.y, rr, 0, Math.PI * 2);
+    nnCtx.fillStyle = 'rgb(' + lr + ',' + lg + ',' + lb + ')';
     nnCtx.fill();
     nnCtx.strokeStyle = '#fff';
     nnCtx.lineWidth = 1.5;
@@ -3122,17 +3153,17 @@ function startTraining() {
     while (currentAlgo !== 'neat' && performance.now() < deadline) {
       agent.trainEpisode(trainEnv);
       count++;
+    }
 
-      // Snapshot weights periodically
-      const ep = agent.episodeRewards.length;
-      if (ep - lastSnapshotEp >= snapshotInterval) {
-        const snap = agent.takeSnapshot();
-        if (snap) {
-          weightSnapshots.push({ episode: ep, data: snap });
-          lastSnapshotEp = ep;
-          if (weightSnapshots.length > MAX_SNAPSHOTS[currentAlgo]) {
-            thinSnapshots();
-          }
+    // Snapshot weights periodically
+    const ep = agent.episodeRewards.length;
+    if (ep - lastSnapshotEp >= snapshotInterval) {
+      const snap = agent.takeSnapshot();
+      if (snap) {
+        weightSnapshots.push({ episode: ep, data: snap });
+        lastSnapshotEp = ep;
+        if (weightSnapshots.length > MAX_SNAPSHOTS[currentAlgo]) {
+          thinSnapshots();
         }
       }
     }
@@ -3140,9 +3171,10 @@ function startTraining() {
     updateStats();
     renderChart(agent.episodeRewards);
 
-    // Save to localStorage every 3 batches
+    // Save to localStorage periodically (NEAT serialization is heavy, save less often)
     saveCounter++;
-    if (saveCounter % 3 === 0) saveAgent();
+    const saveFreq = currentAlgo === 'neat' ? 20 : 3;
+    if (saveCounter % saveFreq === 0) saveAgent();
 
     // Show latest episode visually
     env.reset();
