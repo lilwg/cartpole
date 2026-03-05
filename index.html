@@ -1,0 +1,2504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CartPole</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #f7f7f7;
+  color: #535353;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: #535353;
+  letter-spacing: 2px;
+}
+
+.container {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+canvas {
+  background: #f7f7f7;
+  border-radius: 0;
+  border: 2px solid #535353;
+  image-rendering: pixelated;
+}
+
+#canvas.inverted {
+  filter: invert(100%);
+}
+
+.panel {
+  background: #f7f7f7;
+  border: 2px solid #535353;
+  padding: 16px;
+  width: 280px;
+  height: 404px;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.panel h2 {
+  font-size: 10px;
+  font-weight: 400;
+  margin-bottom: 6px;
+  color: #535353;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.mode-buttons {
+  display: flex;
+  gap: 0;
+}
+
+.mode-buttons button {
+  flex: 1;
+  padding: 8px 10px;
+  border: 2px solid #535353;
+  background: #f7f7f7;
+  color: #535353;
+  font-family: inherit;
+  font-size: 8px;
+  cursor: pointer;
+  transition: all 0.1s;
+  letter-spacing: 1px;
+}
+
+.mode-buttons button + button {
+  border-left: none;
+}
+
+.mode-buttons button:hover {
+  background: #e8e8e8;
+}
+
+.mode-buttons button.active {
+  background: #535353;
+  color: #f7f7f7;
+}
+
+.algo-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.algo-buttons button {
+  padding: 6px 4px;
+  border: 2px solid #535353;
+  background: #f7f7f7;
+  color: #535353;
+  font-family: inherit;
+  font-size: 7px;
+  cursor: pointer;
+  transition: all 0.1s;
+  letter-spacing: 0.5px;
+}
+
+.algo-buttons button:nth-child(2n) {
+  border-left: none;
+}
+
+.algo-buttons button:nth-child(n+3) {
+  border-top: none;
+}
+
+.algo-buttons button:nth-child(5) {
+  grid-column: 1 / -1;
+}
+
+.algo-buttons button:hover {
+  background: #e8e8e8;
+}
+
+.algo-buttons button.active {
+  background: #535353;
+  color: #f7f7f7;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.stat {
+  background: #f7f7f7;
+  border: 1px solid #cacaca;
+  padding: 4px 6px;
+}
+
+.stat-label {
+  font-size: 6px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #999;
+  margin-bottom: 2px;
+}
+
+.stat-value {
+  font-size: 13px;
+  font-weight: 400;
+  color: #535353;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.controls button {
+  padding: 6px;
+  border: 2px solid #535353;
+  background: #f7f7f7;
+  color: #535353;
+  font-family: inherit;
+  font-size: 8px;
+  cursor: pointer;
+  transition: all 0.1s;
+  letter-spacing: 1px;
+}
+
+.controls button:hover {
+  background: #e8e8e8;
+}
+
+.controls button.primary {
+  background: #535353;
+  color: #f7f7f7;
+}
+
+.controls button.primary:hover {
+  background: #666;
+}
+
+.controls button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.btn-row {
+  display: flex;
+  gap: 6px;
+}
+.btn-row button {
+  flex: 1;
+}
+
+.left-stack, .explain-panel {
+  background: #f7f7f7;
+  border: 2px solid #535353;
+  padding: 16px;
+}
+.left-stack {
+  width: 612px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+.nn-container {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 2px solid #e0e0e0;
+}
+.main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 916px;
+}
+.intro-box {
+  background: #f7f7f7;
+  border: 2px solid #535353;
+  padding: 14px 18px;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  line-height: 1.8;
+  color: #444;
+}
+.intro-box b {
+  color: #535353;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+}
+.chart-row {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.chart-container {
+  flex: 1;
+  min-width: 0;
+}
+.explain-panel {
+  width: 280px;
+  flex-shrink: 0;
+}
+.explain-text {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #444;
+  font-family: 'Courier New', monospace;
+  overflow: visible;
+}
+.explain-text p { margin-bottom: 10px; }
+.explain-text b {
+  color: #535353;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+}
+.explain-link {
+  color: #535353;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 10px;
+}
+.explain-link:hover { color: #000; }
+.explain-links { font-family: 'Press Start 2P', monospace; font-size: 7px; letter-spacing: 0.5px; }
+.explain-back {
+  color: #535353;
+  text-decoration: none;
+  font-size: 14px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.explain-back:hover { color: #000; }
+.nn-container canvas, .chart-container canvas {
+  display: block;
+  width: 100%;
+}
+.chart-container canvas {
+  cursor: pointer;
+}
+
+.nn-footer {
+  margin-top: 14px;
+}
+.nn-key {
+  display: flex;
+  gap: 18px;
+  font-size: 9px;
+  color: #999;
+  font-family: 'Press Start 2P', monospace;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.nn-key b { color: #535353; font-size: 14px; font-family: sans-serif; }
+.nn-key-sep { width: 2px; height: 16px; background: #cacaca; }
+.nn-swatch { display: inline-block; width: 30px; height: 6px; margin-right: 6px; vertical-align: middle; }
+.nn-pos { background: #535353; }
+.nn-neg { background: rgb(180,80,80); }
+.nn-act { background: linear-gradient(to right, rgba(83,83,83,0.08), rgba(83,83,83,0.9)); border-radius: 2px; height: 12px; width: 36px; }
+
+.nn-container h2, .chart-container h2, .explain-panel h2 {
+  font-size: 10px;
+  font-weight: 400;
+  margin-bottom: 12px;
+  color: #535353;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 7px;
+  font-weight: 400;
+  margin-left: 8px;
+  letter-spacing: 1px;
+}
+
+.status-badge.training {
+  background: #f7f7f7;
+  color: #535353;
+  border: 1px solid #535353;
+}
+
+.status-badge.solved {
+  background: #535353;
+  color: #f7f7f7;
+  border: 1px solid #535353;
+}
+</style>
+</head>
+<body>
+
+<h1>CartPole</h1>
+
+<div class="main-col">
+<div class="container">
+  <canvas id="canvas" width="608" height="400"></canvas>
+
+  <div class="panel">
+    <div class="section">
+      <h2>Mode</h2>
+      <div class="mode-buttons">
+        <button id="btn-human" class="active" onclick="setMode('human')">HUMAN</button>
+        <button id="btn-ai" onclick="setMode('ai')">AI AGENT</button>
+      </div>
+    </div>
+
+    <div class="section" id="stats-section">
+      <h2>Stats</h2>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">Score</div>
+          <div class="stat-value" id="stat-score">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Best</div>
+          <div class="stat-value" id="stat-best">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="algo-section">
+      <h2>Algorithm</h2>
+      <div class="algo-buttons">
+        <button id="btn-qlearning" onclick="setAlgo('qlearning')">Q-LEARNING</button>
+        <button id="btn-reinforce" class="active" onclick="setAlgo('reinforce')">REINFORCE</button>
+        <button id="btn-dqn" onclick="setAlgo('dqn')">DQN</button>
+        <button id="btn-ppo" onclick="setAlgo('ppo')">PPO</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 id="controls-title">Controls</h2>
+      <div class="controls" id="controls-human">
+      <button onclick="resetEnv()">RESET</button>
+      <button id="btn-slowmo" class="primary" onclick="toggleSlowMo()">SLO-MO</button>
+    </div>
+
+    <div class="controls" id="controls-ai" style="display:none">
+      <button id="btn-train" class="primary" onclick="toggleTraining()">TRAIN AGENT</button>
+      <button id="btn-watch" onclick="runAgent()">WATCH AGENT</button>
+      <button onclick="resetAgent()">RESET AGENT</button>
+      <div class="btn-row">
+        <button id="btn-pause-ai" onclick="togglePause()">⏸ PAUSE</button>
+        <button id="btn-step-ai" onclick="stepOnce()" disabled>⏭ STEP</button>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+
+<div class="intro-box">
+  <p>Try to balance the pole yourself in <b>HUMAN</b> mode, or switch to <b>AI AGENT</b> to train a reinforcement learning algorithm to do it automatically. Pick an algorithm, hit <b>TRAIN AGENT</b>, and watch it learn over hundreds of episodes. Click any point on the training chart to replay the agent from that moment.</p>
+</div>
+
+<div class="chart-row">
+  <div class="left-stack">
+    <div class="chart-container">
+      <h2 style="display:flex;align-items:center;gap:6px;">Training <span style="flex:1"></span><span class="status-badge" id="status-badge" style="display:none"></span><span class="status-badge training" id="marathon-badge" onclick="toggleMarathonMode()" style="cursor:pointer;border-style:dashed">MARATHON</span></h2>
+      <canvas id="chart" width="600" height="180"></canvas>
+    </div>
+    <div class="nn-container" id="nn-container">
+      <h2 id="nn-title">Neural Network</h2>
+      <canvas id="nn-canvas" width="600" height="155"></canvas>
+      <div class="nn-footer">
+        <div class="nn-key">
+          <span><b>x</b> Cart Position</span>
+          <span><b>ẋ</b> Cart Velocity</span>
+          <span><b>θ</b> Pole Angle</span>
+          <span><b>θ̇</b> Pole Speed</span>
+          <span class="nn-key-sep"></span>
+          <span><b>←</b> Push Left</span>
+          <span><b>→</b> Push Right</span>
+          <span class="nn-key-sep"></span>
+          <span><i class="nn-swatch nn-pos"></i> Positive</span>
+          <span><i class="nn-swatch nn-neg"></i> Negative</span>
+          <span><i class="nn-swatch nn-act"></i> Activation</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="explain-panel">
+    <h2 id="explain-title">REINFORCE</h2>
+    <div class="explain-text" id="explain-text">
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ── CartPole Physics ──
+const GRAVITY = 9.8;
+const CART_MASS = 1.0;
+const POLE_MASS = 0.1;
+const TOTAL_MASS = CART_MASS + POLE_MASS;
+const POLE_HALF_LEN = 0.5;
+const POLE_MASS_LENGTH = POLE_MASS * POLE_HALF_LEN;
+const FORCE_MAG = 10.0;
+const DT = 0.02;
+const X_THRESHOLD = 2.4;
+const THETA_THRESHOLD = 12 * Math.PI / 180;
+const THETA_THRESHOLD_VISUAL = 111 * Math.PI / 180; // pole tip hits ground
+const MAX_STEPS = 5000;
+let TRAIN_MAX_STEPS = 500;
+let SOLVE_THRESHOLD = 475;
+let marathonMode = false;
+
+class CartPoleEnv {
+  constructor(maxSteps) {
+    this.maxSteps = maxSteps || MAX_STEPS;
+    this.thetaThreshold = THETA_THRESHOLD;
+  }
+
+  reset() {
+    this.x = (Math.random() - 0.5) * 0.1;
+    this.xDot = (Math.random() - 0.5) * 0.1;
+    this.theta = (Math.random() - 0.5) * 0.1;
+    this.thetaDot = (Math.random() - 0.5) * 0.1;
+    this.steps = 0;
+    this.done = false;
+    return this.getState();
+  }
+
+  getState() {
+    return [this.x, this.xDot, this.theta, this.thetaDot];
+  }
+
+  step(action) {
+    const force = action === 1 ? FORCE_MAG : -FORCE_MAG;
+    const cosTheta = Math.cos(this.theta);
+    const sinTheta = Math.sin(this.theta);
+
+    const temp = (force + POLE_MASS_LENGTH * this.thetaDot * this.thetaDot * sinTheta) / TOTAL_MASS;
+    const thetaAcc = (GRAVITY * sinTheta - cosTheta * temp) /
+      (POLE_HALF_LEN * (4/3 - POLE_MASS * cosTheta * cosTheta / TOTAL_MASS));
+    const xAcc = temp - POLE_MASS_LENGTH * thetaAcc * cosTheta / TOTAL_MASS;
+
+    this.x += DT * this.xDot;
+    this.xDot += DT * xAcc;
+    this.theta += DT * this.thetaDot;
+    this.thetaDot += DT * thetaAcc;
+    this.steps++;
+
+    this.done = Math.abs(this.x) > X_THRESHOLD ||
+                Math.abs(this.theta) > this.thetaThreshold ||
+                this.steps >= this.maxSteps;
+
+    return { state: this.getState(), reward: 1.0, done: this.done };
+  }
+}
+
+// ── Neural Network (with batch gradient accumulation) ──
+class NeuralNetwork {
+  constructor(sizes) {
+    this.sizes = sizes;
+    this.weights = [];
+    this.biases = [];
+    for (let i = 0; i < sizes.length - 1; i++) {
+      this.weights.push(this.randomMatrix(sizes[i+1], sizes[i], sizes[i]));
+      this.biases.push(new Float64Array(sizes[i+1]));
+    }
+  }
+
+  randomMatrix(rows, cols, fanIn) {
+    const scale = Math.sqrt(2.0 / fanIn);
+    const mat = [];
+    for (let r = 0; r < rows; r++) {
+      const row = new Float64Array(cols);
+      for (let c = 0; c < cols; c++) {
+        row[c] = this.randn() * scale;
+      }
+      mat.push(row);
+    }
+    return mat;
+  }
+
+  randn() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  forward(input) {
+    let activations = [Float64Array.from(input)];
+    for (let l = 0; l < this.weights.length; l++) {
+      const w = this.weights[l];
+      const b = this.biases[l];
+      const prev = activations[activations.length - 1];
+      const out = new Float64Array(w.length);
+      for (let r = 0; r < w.length; r++) {
+        let sum = b[r];
+        for (let c = 0; c < w[r].length; c++) {
+          sum += w[r][c] * prev[c];
+        }
+        out[r] = (l < this.weights.length - 1) ? Math.max(0, sum) : sum;
+      }
+      activations.push(out);
+    }
+    return activations;
+  }
+
+  predict(input) {
+    const activations = this.forward(input);
+    const logits = activations[activations.length - 1];
+    const maxLogit = Math.max(...logits);
+    const exps = logits.map(l => Math.exp(l - maxLogit));
+    const sumExp = exps.reduce((a, b) => a + b);
+    const probs = exps.map(e => e / sumExp);
+    this.lastActivations = activations;
+    this.lastProbs = probs;
+    return probs;
+  }
+
+  sampleAction(probs) {
+    return Math.random() < probs[0] ? 0 : 1;
+  }
+
+  // Create zero-initialized gradient accumulators
+  zeroGrads() {
+    const wGrads = [];
+    const bGrads = [];
+    for (let l = 0; l < this.weights.length; l++) {
+      const wg = [];
+      for (let r = 0; r < this.weights[l].length; r++) {
+        wg.push(new Float64Array(this.weights[l][r].length));
+      }
+      wGrads.push(wg);
+      bGrads.push(new Float64Array(this.biases[l].length));
+    }
+    return { wGrads, bGrads };
+  }
+
+  // Backprop and ACCUMULATE gradients (don't apply yet)
+  backpropAccumulate(activations, outputGrad, grads) {
+    let delta = outputGrad;
+    for (let l = this.weights.length - 1; l >= 0; l--) {
+      const input = activations[l];
+      const output = activations[l + 1];
+      const w = this.weights[l];
+      const newDelta = new Float64Array(input.length);
+
+      for (let r = 0; r < w.length; r++) {
+        let d = delta[r];
+        if (l < this.weights.length - 1 && output[r] <= 0) d = 0;
+
+        grads.bGrads[l][r] += d;
+        for (let c = 0; c < w[r].length; c++) {
+          newDelta[c] += w[r][c] * d;
+          grads.wGrads[l][r][c] += d * input[c];
+        }
+      }
+      delta = newDelta;
+    }
+  }
+
+  // Apply accumulated gradients with learning rate
+  applyGrads(grads, lr) {
+    for (let l = 0; l < this.weights.length; l++) {
+      for (let r = 0; r < this.weights[l].length; r++) {
+        this.biases[l][r] += lr * grads.bGrads[l][r];
+        for (let c = 0; c < this.weights[l][r].length; c++) {
+          this.weights[l][r][c] += lr * grads.wGrads[l][r][c];
+        }
+      }
+    }
+  }
+}
+
+// ── REINFORCE Agent (fixed: batch gradient accumulation) ──
+class ReinforceAgent {
+  constructor() {
+    this.net = new NeuralNetwork([4, 32, 2]);
+    this.lr = 0.005;
+    this.gamma = 0.99;
+    this.episodeRewards = [];
+    this.bestReward = 0;
+    this.solved = false;
+  }
+
+  selectAction(state) {
+    const probs = this.net.predict(state);
+    const action = this.net.sampleAction(probs);
+    this.net.lastAction = action;
+    return { action, probs };
+  }
+
+  trainEpisode(env) {
+    const states = [];
+    const actions = [];
+    const rewards = [];
+
+    let state = env.reset();
+
+    while (!env.done) {
+      const { action } = this.selectAction(state);
+      states.push([...state]);
+      actions.push(action);
+
+      const result = env.step(action);
+      rewards.push(result.reward);
+      state = result.state;
+    }
+
+    // Compute discounted returns
+    const returns = new Float64Array(rewards.length);
+    let G = 0;
+    for (let t = rewards.length - 1; t >= 0; t--) {
+      G = rewards[t] + this.gamma * G;
+      returns[t] = G;
+    }
+
+    // Normalize returns
+    const mean = returns.reduce((a, b) => a + b) / returns.length;
+    let std = 0;
+    for (const r of returns) std += (r - mean) * (r - mean);
+    std = Math.sqrt(std / returns.length) + 1e-8;
+    for (let i = 0; i < returns.length; i++) returns[i] = (returns[i] - mean) / std;
+
+    // Accumulate gradients over the entire episode, then apply once
+    const grads = this.net.zeroGrads();
+
+    for (let t = 0; t < states.length; t++) {
+      const activations = this.net.forward(states[t]);
+      const logits = activations[activations.length - 1];
+
+      const maxL = Math.max(...logits);
+      const exps = logits.map(l => Math.exp(l - maxL));
+      const sumExp = exps.reduce((a, b) => a + b);
+      const probs = exps.map(e => e / sumExp);
+
+      // Gradient of log-probability * advantage
+      const grad = new Float64Array(2);
+      grad[actions[t]] = returns[t] * (1 - probs[actions[t]]);
+      grad[1 - actions[t]] = returns[t] * (-probs[1 - actions[t]]);
+
+      this.net.backpropAccumulate(activations, grad, grads);
+    }
+
+    // Scale gradients by 1/T and apply
+    const T = states.length;
+    for (let l = 0; l < grads.wGrads.length; l++) {
+      for (let r = 0; r < grads.wGrads[l].length; r++) {
+        grads.bGrads[l][r] /= T;
+        for (let c = 0; c < grads.wGrads[l][r].length; c++) {
+          grads.wGrads[l][r][c] /= T;
+        }
+      }
+    }
+    this.net.applyGrads(grads, this.lr);
+
+    const totalReward = rewards.length;
+    this.episodeRewards.push(totalReward);
+    if (totalReward > this.bestReward) this.bestReward = totalReward;
+
+    // Check if solved (avg >= SOLVE_THRESHOLD over last 20 episodes)
+    if (this.episodeRewards.length >= 20) {
+      const last20 = this.episodeRewards.slice(-20);
+      const avg = last20.reduce((a, b) => a + b) / last20.length;
+      if (avg >= SOLVE_THRESHOLD) this.solved = true;
+    }
+
+    return totalReward;
+  }
+
+  serialize() {
+    return { net: serializeNet(this.net), episodeRewards: this.episodeRewards, bestReward: this.bestReward, solved: this.solved };
+  }
+  load(data) {
+    if (data.net) deserializeNet(this.net, data.net);
+    this.episodeRewards = data.episodeRewards || [];
+    this.bestReward = data.bestReward || 0;
+    this.solved = !!data.solved;
+  }
+  takeSnapshot() { return serializeNet(this.net); }
+  loadSnapshot(data) { deserializeNet(this.net, data); }
+}
+
+// ── Tabular Q-Learning Agent ──
+class QLearningAgent {
+  constructor() {
+    this.net = null; // tabular — no neural network
+    this.lr = 0.15;
+    this.gamma = 0.99;
+    this.epsilon = 1.0;
+    this.epsilonDecay = 0.999;
+    this.epsilonMin = 0.01;
+    this.bins = [4, 8, 20, 16]; // per-dimension: [x, ẋ, θ, θ̇]
+    this.nBins = Math.max(...this.bins); // for viz compatibility
+    this.totalStates = this.bins.reduce((a, b) => a * b, 1);
+    this.ranges = [[-2.4, 2.4], [-3, 3], [-0.21, 0.21], [-3, 3]];
+    this.qTable = new Float64Array(this.totalStates * 2);
+    this.episodeRewards = [];
+    this.bestReward = 0;
+    this.solved = false;
+  }
+
+  discretize(state) {
+    let idx = 0;
+    for (let i = 0; i < 4; i++) {
+      const [min, max] = this.ranges[i];
+      const nb = this.bins[i];
+      const clamped = Math.max(min, Math.min(max, state[i]));
+      let bin = Math.floor((clamped - min) / (max - min) * nb);
+      if (bin >= nb) bin = nb - 1;
+      idx = idx * nb + bin;
+    }
+    return idx;
+  }
+
+  getQ(si, a) { return this.qTable[si * 2 + a]; }
+  setQ(si, a, v) { this.qTable[si * 2 + a] = v; }
+
+  selectAction(state) {
+    const si = this.discretize(state);
+    const q0 = this.getQ(si, 0), q1 = this.getQ(si, 1);
+    const action = Math.random() < this.epsilon
+      ? (Math.random() < 0.5 ? 0 : 1)
+      : (q0 >= q1 ? 0 : 1);
+    const maxQ = Math.max(Math.abs(q0), Math.abs(q1), 1);
+    const e0 = Math.exp(q0 / maxQ), e1 = Math.exp(q1 / maxQ);
+    const probs = [e0 / (e0 + e1), e1 / (e0 + e1)];
+    return { action, probs };
+  }
+
+  trainEpisode(env) {
+    let state = env.reset();
+    let totalReward = 0;
+    while (!env.done) {
+      const si = this.discretize(state);
+      const { action } = this.selectAction(state);
+      const result = env.step(action);
+      const nsi = this.discretize(result.state);
+      const maxNextQ = Math.max(this.getQ(nsi, 0), this.getQ(nsi, 1));
+      const target = result.done ? result.reward : result.reward + this.gamma * maxNextQ;
+      this.setQ(si, action, this.getQ(si, action) + this.lr * (target - this.getQ(si, action)));
+      state = result.state;
+      totalReward += result.reward;
+    }
+    this.epsilon = Math.max(this.epsilonMin, this.epsilon * this.epsilonDecay);
+    this.episodeRewards.push(totalReward);
+    if (totalReward > this.bestReward) this.bestReward = totalReward;
+    if (this.episodeRewards.length >= 20) {
+      const last20 = this.episodeRewards.slice(-20);
+      if (last20.reduce((a, b) => a + b) / 20 >= SOLVE_THRESHOLD) this.solved = true;
+    }
+    return totalReward;
+  }
+
+  serialize() {
+    return { qTable: Array.from(this.qTable), epsilon: this.epsilon, episodeRewards: this.episodeRewards, bestReward: this.bestReward, solved: this.solved };
+  }
+  load(data) {
+    if (data.qTable) this.qTable = new Float64Array(data.qTable);
+    this.epsilon = data.epsilon != null ? data.epsilon : 1.0;
+    this.episodeRewards = data.episodeRewards || [];
+    this.bestReward = data.bestReward || 0;
+    this.solved = !!data.solved;
+  }
+  takeSnapshot() { return { qTable: Array.from(this.qTable), epsilon: this.epsilon }; }
+  loadSnapshot(data) {
+    if (data.qTable) this.qTable = new Float64Array(data.qTable);
+    if (data.epsilon != null) this.epsilon = data.epsilon;
+  }
+}
+
+// ── DQN Agent (Deep Q-Network) ──
+class DQNAgent {
+  constructor() {
+    this.net = new NeuralNetwork([4, 32, 2]);
+    this.targetNet = new NeuralNetwork([4, 32, 2]);
+    this.copyToTarget();
+    this.lr = 0.001;
+    this.gamma = 0.99;
+    this.epsilon = 1.0;
+    this.epsilonDecay = 0.998;
+    this.epsilonMin = 0.01;
+    this.batchSize = 32;
+    this.replayBuffer = [];
+    this.bufferCapacity = 10000;
+    this.targetUpdateFreq = 100;
+    this.episodeRewards = [];
+    this.bestReward = 0;
+    this.solved = false;
+  }
+
+  copyToTarget() {
+    for (let l = 0; l < this.net.weights.length; l++) {
+      for (let r = 0; r < this.net.weights[l].length; r++) {
+        this.targetNet.weights[l][r] = new Float64Array(this.net.weights[l][r]);
+      }
+      this.targetNet.biases[l] = new Float64Array(this.net.biases[l]);
+    }
+  }
+
+  selectAction(state) {
+    const activations = this.net.forward(state);
+    const qv = activations[activations.length - 1];
+    const action = Math.random() < this.epsilon
+      ? (Math.random() < 0.5 ? 0 : 1)
+      : (qv[0] >= qv[1] ? 0 : 1);
+    this.net.lastActivations = activations;
+    this.net.lastAction = action;
+    const maxQ = Math.max(qv[0], qv[1]);
+    const e0 = Math.exp(qv[0] - maxQ), e1 = Math.exp(qv[1] - maxQ);
+    this.net.lastProbs = [e0 / (e0 + e1), e1 / (e0 + e1)];
+    return { action, probs: this.net.lastProbs };
+  }
+
+  trainEpisode(env) {
+    let state = env.reset();
+    let totalReward = 0;
+    while (!env.done) {
+      const { action } = this.selectAction(state);
+      const result = env.step(action);
+      this.replayBuffer.push({ s: [...state], a: action, r: result.reward, ns: [...result.state], d: result.done });
+      if (this.replayBuffer.length > this.bufferCapacity) this.replayBuffer.shift();
+      state = result.state;
+      totalReward += result.reward;
+    }
+    if (this.replayBuffer.length >= this.batchSize) this._trainBatch();
+    this.epsilon = Math.max(this.epsilonMin, this.epsilon * this.epsilonDecay);
+    this.episodeRewards.push(totalReward);
+    if (totalReward > this.bestReward) this.bestReward = totalReward;
+    if (this.episodeRewards.length % this.targetUpdateFreq === 0) this.copyToTarget();
+    if (this.episodeRewards.length >= 20) {
+      const last20 = this.episodeRewards.slice(-20);
+      if (last20.reduce((a, b) => a + b) / 20 >= SOLVE_THRESHOLD) this.solved = true;
+    }
+    return totalReward;
+  }
+
+  _trainBatch() {
+    const grads = this.net.zeroGrads();
+    for (let i = 0; i < this.batchSize; i++) {
+      const exp = this.replayBuffer[Math.floor(Math.random() * this.replayBuffer.length)];
+      const activations = this.net.forward(exp.s);
+      const qv = activations[activations.length - 1];
+      const tAct = this.targetNet.forward(exp.ns);
+      const tQ = tAct[tAct.length - 1];
+      const target = exp.d ? exp.r : exp.r + this.gamma * Math.max(tQ[0], tQ[1]);
+      const grad = new Float64Array(2);
+      grad[exp.a] = target - qv[exp.a];
+      this.net.backpropAccumulate(activations, grad, grads);
+    }
+    for (let l = 0; l < grads.wGrads.length; l++) {
+      for (let r = 0; r < grads.wGrads[l].length; r++) {
+        grads.bGrads[l][r] /= this.batchSize;
+        for (let c = 0; c < grads.wGrads[l][r].length; c++) grads.wGrads[l][r][c] /= this.batchSize;
+      }
+    }
+    this.net.applyGrads(grads, this.lr);
+  }
+
+  serialize() {
+    return { net: serializeNet(this.net), targetNet: serializeNet(this.targetNet), epsilon: this.epsilon, episodeRewards: this.episodeRewards, bestReward: this.bestReward, solved: this.solved };
+  }
+  load(data) {
+    if (data.net) deserializeNet(this.net, data.net);
+    if (data.targetNet) deserializeNet(this.targetNet, data.targetNet); else this.copyToTarget();
+    this.epsilon = data.epsilon != null ? data.epsilon : 1.0;
+    this.episodeRewards = data.episodeRewards || [];
+    this.bestReward = data.bestReward || 0;
+    this.solved = !!data.solved;
+  }
+  takeSnapshot() { return serializeNet(this.net); }
+  loadSnapshot(data) { deserializeNet(this.net, data); }
+}
+
+// ── PPO Agent (Proximal Policy Optimization) ──
+class PPOAgent {
+  constructor() {
+    this.net = new NeuralNetwork([4, 32, 2]);     // policy
+    this.valueNet = new NeuralNetwork([4, 32, 1]); // value baseline
+    this.lr = 0.003;
+    this.valueLr = 0.01;
+    this.gamma = 0.99;
+    this.clipEps = 0.2;
+    this.epochs = 4;
+    this.entropyCoeff = 0.01;
+    this.episodeRewards = [];
+    this.bestReward = 0;
+    this.solved = false;
+  }
+
+  selectAction(state) {
+    const probs = this.net.predict(state);
+    const action = this.net.sampleAction(probs);
+    this.net.lastAction = action;
+    return { action, probs };
+  }
+
+  trainEpisode(env) {
+    const states = [], actions = [], rewards = [], oldProbs = [];
+    let state = env.reset();
+    while (!env.done) {
+      const probs = this.net.predict(state);
+      const action = this.net.sampleAction(probs);
+      states.push([...state]);
+      actions.push(action);
+      oldProbs.push([...probs]);
+      const result = env.step(action);
+      rewards.push(result.reward);
+      state = result.state;
+    }
+
+    // Discounted returns
+    const returns = new Float64Array(rewards.length);
+    let G = 0;
+    for (let t = rewards.length - 1; t >= 0; t--) { G = rewards[t] + this.gamma * G; returns[t] = G; }
+
+    // Advantages via value baseline
+    const values = states.map(s => { const a = this.valueNet.forward(s); return a[a.length - 1][0]; });
+    const advantages = new Float64Array(returns.length);
+    for (let t = 0; t < returns.length; t++) advantages[t] = returns[t] - values[t];
+    const mean = advantages.reduce((a, b) => a + b) / advantages.length;
+    let std = 0;
+    for (const a of advantages) std += (a - mean) * (a - mean);
+    std = Math.sqrt(std / advantages.length) + 1e-8;
+    for (let i = 0; i < advantages.length; i++) advantages[i] = (advantages[i] - mean) / std;
+
+    const T = states.length;
+    for (let epoch = 0; epoch < this.epochs; epoch++) {
+      // Policy update
+      const pg = this.net.zeroGrads();
+      for (let t = 0; t < T; t++) {
+        const activations = this.net.forward(states[t]);
+        const logits = activations[activations.length - 1];
+        const maxL = Math.max(...logits);
+        const exps = logits.map(l => Math.exp(l - maxL));
+        const sumE = exps.reduce((a, b) => a + b);
+        const probs = exps.map(e => e / sumE);
+        const ratio = probs[actions[t]] / (oldProbs[t][actions[t]] + 1e-8);
+        const clipped = Math.max(1 - this.clipEps, Math.min(1 + this.clipEps, ratio));
+        const adv = advantages[t];
+        const useClipped = (clipped * adv) < (ratio * adv);
+        const grad = new Float64Array(2);
+        if (!useClipped) {
+          grad[actions[t]] = adv * (1 - probs[actions[t]]);
+          grad[1 - actions[t]] = adv * (-probs[1 - actions[t]]);
+        }
+        this.net.backpropAccumulate(activations, grad, pg);
+      }
+      for (let l = 0; l < pg.wGrads.length; l++)
+        for (let r = 0; r < pg.wGrads[l].length; r++) {
+          pg.bGrads[l][r] /= T;
+          for (let c = 0; c < pg.wGrads[l][r].length; c++) pg.wGrads[l][r][c] /= T;
+        }
+      this.net.applyGrads(pg, this.lr);
+
+      // Value update
+      const vg = this.valueNet.zeroGrads();
+      for (let t = 0; t < T; t++) {
+        const act = this.valueNet.forward(states[t]);
+        const pred = act[act.length - 1][0];
+        const g = new Float64Array(1);
+        g[0] = returns[t] - pred;
+        this.valueNet.backpropAccumulate(act, g, vg);
+      }
+      for (let l = 0; l < vg.wGrads.length; l++)
+        for (let r = 0; r < vg.wGrads[l].length; r++) {
+          vg.bGrads[l][r] /= T;
+          for (let c = 0; c < vg.wGrads[l][r].length; c++) vg.wGrads[l][r][c] /= T;
+        }
+      this.valueNet.applyGrads(vg, this.valueLr);
+    }
+
+    const totalReward = rewards.length;
+    this.episodeRewards.push(totalReward);
+    if (totalReward > this.bestReward) this.bestReward = totalReward;
+    if (this.episodeRewards.length >= 20) {
+      const last20 = this.episodeRewards.slice(-20);
+      if (last20.reduce((a, b) => a + b) / 20 >= SOLVE_THRESHOLD) this.solved = true;
+    }
+    return totalReward;
+  }
+
+  serialize() {
+    return { net: serializeNet(this.net), valueNet: serializeNet(this.valueNet), episodeRewards: this.episodeRewards, bestReward: this.bestReward, solved: this.solved };
+  }
+  load(data) {
+    if (data.net) deserializeNet(this.net, data.net);
+    if (data.valueNet) deserializeNet(this.valueNet, data.valueNet);
+    this.episodeRewards = data.episodeRewards || [];
+    this.bestReward = data.bestReward || 0;
+    this.solved = !!data.solved;
+  }
+  takeSnapshot() { return serializeNet(this.net); }
+  loadSnapshot(data) { deserializeNet(this.net, data); }
+}
+
+// ── Multi-Algorithm State Management ──
+const ALGOS = ['qlearning', 'reinforce', 'dqn', 'ppo'];
+const algoState = {};
+let currentAlgo = 'reinforce';
+
+function createAgent(algo) {
+  switch (algo) {
+    case 'reinforce': return new ReinforceAgent();
+    case 'qlearning': return new QLearningAgent();
+    case 'ppo': return new PPOAgent();
+    case 'dqn': return new DQNAgent();
+  }
+}
+
+for (const algo of ALGOS) {
+  algoState[algo] = { agent: createAgent(algo), snapshots: [], selectedEpisode: null, snapshotInterval: 50 };
+}
+
+// ── Weight Snapshots (for clickable chart time-travel) ──
+// Max snapshots: NN ~5KB each → 30 × 5KB = 150KB; Q-table ~80KB each → 10 × 80KB = 800KB
+const MAX_SNAPSHOTS = { qlearning: 10, reinforce: 30, ppo: 30, dqn: 30 };
+const BASE_SNAPSHOT_INTERVAL = 50;
+let weightSnapshots = algoState[currentAlgo].snapshots;
+let snapshotInterval = algoState[currentAlgo].snapshotInterval;
+let selectedEpisode = null;
+
+// Thin by removing every other snapshot → doubles spacing, always perfectly even
+function thinSnapshots() {
+  const thinned = [];
+  for (let i = 0; i < weightSnapshots.length; i += 2) {
+    thinned.push(weightSnapshots[i]);
+  }
+  // Always keep last snapshot
+  if (thinned[thinned.length - 1] !== weightSnapshots[weightSnapshots.length - 1]) {
+    thinned.push(weightSnapshots[weightSnapshots.length - 1]);
+  }
+  weightSnapshots.length = 0;
+  weightSnapshots.push(...thinned);
+  snapshotInterval *= 2;
+  algoState[currentAlgo].snapshotInterval = snapshotInterval;
+}
+
+// ── Network Serialization ──
+function serializeNet(net) {
+  return {
+    sizes: net.sizes,
+    weights: net.weights.map(layer => layer.map(row => Array.from(row))),
+    biases: net.biases.map(b => Array.from(b))
+  };
+}
+
+function deserializeNet(net, data) {
+  for (let l = 0; l < data.weights.length; l++) {
+    for (let r = 0; r < data.weights[l].length; r++) {
+      net.weights[l][r] = new Float64Array(data.weights[l][r]);
+    }
+    net.biases[l] = new Float64Array(data.biases[l]);
+  }
+}
+
+// ── localStorage Persistence (per-algorithm) ──
+function saveAgent() {
+  try {
+    const data = {
+      agent: agent.serialize(),
+      snapshots: weightSnapshots,
+      snapshotInterval: algoState[currentAlgo].snapshotInterval
+    };
+    localStorage.setItem('cartpole-' + currentAlgo, JSON.stringify(data));
+  } catch (e) {
+    // Quota exceeded — try saving without snapshots
+    try {
+      const data = { agent: agent.serialize(), snapshots: [] };
+      localStorage.setItem('cartpole-' + currentAlgo, JSON.stringify(data));
+    } catch (e2) {
+      // Still failing — try saving with trimmed episode rewards
+      try {
+        const ser = agent.serialize();
+        if (ser.episodeRewards && ser.episodeRewards.length > 1000) {
+          // Keep first 100, then every 10th, then last 100
+          const r = ser.episodeRewards;
+          const trimmed = r.slice(0, 100);
+          for (let i = 100; i < r.length - 100; i += 10) trimmed.push(r[i]);
+          trimmed.push(...r.slice(-100));
+          ser.episodeRewards = trimmed;
+        }
+        localStorage.setItem('cartpole-' + currentAlgo, JSON.stringify({ agent: ser, snapshots: [] }));
+      } catch (e3) { console.warn('Save failed:', e3); }
+    }
+  }
+}
+
+function loadAlgo(algo) {
+  try {
+    const raw = localStorage.getItem('cartpole-' + algo);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    const agentData = data.agent || data;
+    algoState[algo].agent.load(agentData);
+    algoState[algo].snapshots = (data.snapshots || []).map(s => ({
+      episode: s.episode, data: s.data || s.net
+    }));
+    // Restore snapshot interval (or infer from spacing)
+    const snaps = algoState[algo].snapshots;
+    if (data.snapshotInterval) {
+      algoState[algo].snapshotInterval = data.snapshotInterval;
+    } else if (snaps.length >= 2) {
+      algoState[algo].snapshotInterval = snaps[1].episode - snaps[0].episode;
+    }
+    return true;
+  } catch (e) {
+    console.warn('Load failed for ' + algo + ':', e);
+    return false;
+  }
+}
+
+function clearSavedAgent() {
+  localStorage.removeItem('cartpole-' + currentAlgo);
+  weightSnapshots = [];
+  selectedEpisode = null;
+  snapshotInterval = BASE_SNAPSHOT_INTERVAL;
+  algoState[currentAlgo].snapshots = weightSnapshots;
+  algoState[currentAlgo].selectedEpisode = selectedEpisode;
+  algoState[currentAlgo].snapshotInterval = snapshotInterval;
+}
+
+// ── Rendering with Chromium Dino Sprite Sheet ──
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+
+// Load sprite sheet (Chromium BSD-licensed, 1233x100 1x sprite)
+const spriteSheet = new Image();
+spriteSheet.src = 'sprite.png';
+let spriteReady = false;
+spriteSheet.onload = () => { spriteReady = true; };
+
+// Sprite coordinates on the 1x sheet (x, y, w, h)
+const SP = {
+  // T-Rex frames (each 44x47, at y=2, starting at x=848)
+  TREX_STAND:  { x: 848, y: 2, w: 44, h: 47 },
+  TREX_BLINK:  { x: 848+44, y: 2, w: 44, h: 47 },
+  TREX_RUN1:   { x: 848+88, y: 2, w: 44, h: 47 },
+  TREX_RUN2:   { x: 848+132, y: 2, w: 44, h: 47 },
+  TREX_CRASH:  { x: 848+220, y: 2, w: 44, h: 47 },
+  // Cloud (46x14)
+  CLOUD:       { x: 86, y: 2, w: 46, h: 14 },
+  // Ground/horizon (600x12)
+  GROUND:      { x: 2, y: 54, w: 600, h: 12 },
+  // Cactus small (17x35)
+  CACTUS_SM:   { x: 228, y: 2, w: 17, h: 35 },
+  CACTUS_SM2:  { x: 228+17, y: 2, w: 17, h: 35 },
+  CACTUS_SM3:  { x: 228+34, y: 2, w: 17, h: 35 },
+  // Cactus large (25x50)
+  CACTUS_LG:   { x: 332, y: 2, w: 25, h: 50 },
+  CACTUS_LG2:  { x: 332+25, y: 2, w: 25, h: 50 },
+  // Moon (20x40, multiple phases side by side)
+  MOON:        { x: 484, y: 2, w: 20, h: 40 },
+  // Stars (9x9 each, 3 stars in a row)
+  STAR1:       { x: 645, y: 2, w: 9, h: 9 },
+  // Game over text (191x11)
+  GAME_OVER:   { x: 655, y: 15, w: 191, h: 11 },
+  // Restart button (36x32)
+  RESTART:     { x: 2, y: 2, w: 36, h: 32 },
+};
+
+const DRAW_SCALE = 1.6;
+
+// Helper: draw a sprite from the sheet, scaled
+function drawSprite(sp, dx, dy, scale) {
+  if (!spriteReady) return;
+  const s = scale || DRAW_SCALE;
+  ctx.drawImage(spriteSheet,
+    sp.x, sp.y, sp.w, sp.h,
+    Math.round(dx), Math.round(dy),
+    Math.round(sp.w * s), Math.round(sp.h * s)
+  );
+}
+
+// Helper: draw a sprite horizontally flipped
+function drawSpriteFlipped(sp, dx, dy, scale) {
+  if (!spriteReady) return;
+  const s = scale || DRAW_SCALE;
+  const dw = Math.round(sp.w * s);
+  const dh = Math.round(sp.h * s);
+  ctx.save();
+  ctx.translate(Math.round(dx) + dw, Math.round(dy));
+  ctx.scale(-1, 1);
+  ctx.drawImage(spriteSheet,
+    sp.x, sp.y, sp.w, sp.h,
+    0, 0, dw, dh
+  );
+  ctx.restore();
+}
+
+let legFrame = 0;
+let frameCount = 0;
+let dinoFacingRight = true; // track which way the dino faces
+
+// ── Night mode state ──
+// Chrome triggers night every 700 distance, lasts ~200 steps then back to day
+let nightActive = false;
+let nightTimer = 0;
+const NIGHT_TRIGGER_STEPS = 700;
+const NIGHT_DURATION = 200;
+
+// Star positions (fixed, random-looking)
+const starPositions = [
+  { x: 80, y: 35 }, { x: 190, y: 55 }, { x: 320, y: 25 },
+  { x: 410, y: 60 }, { x: 500, y: 30 }, { x: 560, y: 50 },
+];
+
+function render(env) {
+  ctx.clearRect(0, 0, W, H);
+  const S = DRAW_SCALE;
+  const groundY = H * 0.78;
+
+  // ── Update night cycle (matches Chrome: toggle CSS invert) ──
+  if (env.steps > 0 && env.steps % NIGHT_TRIGGER_STEPS === 0 && !nightActive && !env.done) {
+    nightActive = true;
+    nightTimer = 0;
+    document.getElementById('canvas').classList.add('inverted');
+  }
+  if (nightActive) {
+    nightTimer++;
+    if (nightTimer > NIGHT_DURATION) {
+      nightActive = false;
+      document.getElementById('canvas').classList.remove('inverted');
+    }
+  }
+
+  // ── Background (always white; night inversion applied later) ──
+  ctx.fillStyle = '#f7f7f7';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Animate legs (only when actively playing/watching/training) ──
+  const isIdle = !isTraining && !isWatching && mode !== 'human';
+  if (isIdle || env.done) {
+    legFrame = 0;
+  } else if (isWatching && nnPaused && !nnDidStep) {
+    // paused: freeze legs in place (don't reset to 0)
+  } else if (nnDidStep) {
+    legFrame = legFrame === 1 ? 2 : 1;
+  } else {
+    frameCount++;
+    if (frameCount % 6 === 0) {
+      legFrame = legFrame === 1 ? 2 : 1;
+    }
+  }
+
+  // ── Update dino facing direction (follows input/action, not velocity) ──
+  if (!env.done) {
+    if (mode === 'human') {
+      if (humanAction === 1) dinoFacingRight = true;
+      else if (humanAction === 0) dinoFacingRight = false;
+    } else if (lastExecutedAction != null) {
+      dinoFacingRight = lastExecutedAction === 1;
+    }
+  }
+
+  // ── Draw moon and stars during night ──
+  if (nightActive) {
+    drawSprite(SP.MOON, W - 100, 30, S);
+    for (const star of starPositions) {
+      drawSprite(SP.STAR1, star.x, star.y, S);
+    }
+  }
+
+  // ── Draw ground (static, no scrolling) tiled across canvas ──
+  const groundW = Math.round(SP.GROUND.w * S);
+  for (let gx = 0; gx < W + groundW; gx += groundW) {
+    drawSprite(SP.GROUND, gx, groundY, S);
+  }
+
+  // ── Draw clouds ──
+  for (const cx of [60, 240, 440]) {
+    drawSprite(SP.CLOUD, cx, 30 + Math.sin(cx * 0.01) * 10, S);
+  }
+
+  // Scale for cart position
+  const scale = W / (X_THRESHOLD * 2.5);
+  const dinoX = W / 2 + env.x * scale;
+
+  // ── Boundary cacti ──
+  const leftBound = W / 2 - X_THRESHOLD * scale;
+  const rightBound = W / 2 + X_THRESHOLD * scale;
+  drawSprite(SP.CACTUS_LG, leftBound - SP.CACTUS_LG.w * S / 2, groundY - SP.CACTUS_LG.h * S, S);
+  drawSprite(SP.CACTUS_LG2, rightBound - SP.CACTUS_LG2.w * S / 2, groundY - SP.CACTUS_LG2.h * S, S);
+
+  // ── Draw the T-Rex (facing movement direction) ──
+  let trexFrame;
+  if (env.done && env.steps < MAX_STEPS) {
+    trexFrame = SP.TREX_CRASH;
+  } else if (env.done || legFrame === 0) {
+    trexFrame = SP.TREX_STAND;
+  } else {
+    trexFrame = legFrame === 1 ? SP.TREX_RUN1 : SP.TREX_RUN2;
+  }
+
+  const trexW = trexFrame.w * S;
+  const trexH = trexFrame.h * S;
+  const trexDrawX = dinoX - trexW / 2;
+  const trexDrawY = groundY - trexH + 26; // offset so feet plant on the ground line
+
+  // Default sprite faces right; flip if facing left
+  if (dinoFacingRight) {
+    drawSprite(trexFrame, trexDrawX, trexDrawY, S);
+  } else {
+    drawSpriteFlipped(trexFrame, trexDrawX, trexDrawY, S);
+  }
+
+  // ── Pole from the top of dino's head ──
+  const poleBaseX = trexDrawX + trexW * 0.5;
+  const poleBaseY = trexDrawY + 2;
+  const poleLen = 130;
+
+  const poleEndX = poleBaseX + Math.sin(env.theta) * poleLen;
+  const poleEndY = poleBaseY - Math.cos(env.theta) * poleLen;
+
+  // Pole (drawn dark, inversion handles night)
+  ctx.strokeStyle = '#535353';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(poleBaseX, poleBaseY);
+  ctx.lineTo(poleEndX, poleEndY);
+  ctx.stroke();
+
+  // Pole tip
+  ctx.fillStyle = '#535353';
+  ctx.beginPath();
+  ctx.arc(poleEndX, poleEndY, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#f7f7f7';
+  ctx.beginPath();
+  ctx.arc(poleEndX, poleEndY, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pivot dot
+  ctx.fillStyle = '#535353';
+  ctx.beginPath();
+  ctx.arc(poleBaseX, poleBaseY, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── HUD (drawn before inversion so it inverts with everything, like Chrome) ──
+  ctx.fillStyle = '#535353';
+  ctx.font = '10px "Press Start 2P", "Courier New", monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(`${String(env.steps).padStart(5, '0')}`, W - 16, 24);
+
+  ctx.fillStyle = '#999';
+  ctx.fillText('HI ' + String(mode === 'human' ? humanBest : agent.bestReward).padStart(5, '0'), W - 16, 42);
+
+  // Game over / perfect
+  if (env.done && env.steps < MAX_STEPS) {
+    const goW = SP.GAME_OVER.w * S;
+    const goH = SP.GAME_OVER.h * S;
+    drawSprite(SP.GAME_OVER, W/2 - goW/2, 44, S);
+    const rsW = SP.RESTART.w * S;
+    drawSprite(SP.RESTART, W/2 - rsW/2, 44 + goH + 8, S);
+  }
+  if (mode === 'human') {
+    const groundAreaCenter = (H * 0.78 + 12 * S + H) / 2;
+    ctx.textAlign = 'center';
+    if (humanWaiting) {
+      ctx.fillStyle = '#535353';
+      ctx.font = '10px "Press Start 2P", monospace';
+      ctx.fillText('PRESS SPACE TO PLAY', W / 2, groundAreaCenter - 11);
+    }
+    ctx.font = '9px "Press Start 2P", monospace';
+    ctx.fillStyle = '#999';
+    ctx.fillText('< > TO STEER', W / 2, groundAreaCenter + 11);
+  }
+  if (env.done && env.steps >= MAX_STEPS) {
+    ctx.fillStyle = '#535353';
+    ctx.font = '18px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('P E R F E C T !', W / 2, 54);
+  }
+
+  // Mode label
+  ctx.fillStyle = '#535353';
+  ctx.font = '10px "Press Start 2P", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(mode === 'human' ? 'HUMAN' : 'AI', 16, 24);
+
+
+}
+
+// ── Neural Network Visualization ──
+const nnCanvas = document.getElementById('nn-canvas');
+const nnCtx = nnCanvas.getContext('2d');
+
+function renderQTable(cw, ch) {
+  const ctx = nnCtx;
+  if (!agent.qTable) {
+    ctx.fillStyle = '#cacaca';
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('NO VISUALIZATION', cw / 2, ch / 2);
+    return;
+  }
+
+  const b = agent.bins; // [x, ẋ, θ, θ̇] per-dimension bin counts
+  // 4D Q-table as nested 2D grids:
+  // Outer grid: θ (cols=b[2]) × θ̇ (rows=b[3]) — high-res dims on outside
+  // Inner grid: x (cols=b[0]) × ẋ (rows=b[1]) — low-res dims inside
+  const padLeft = 44;
+  const padTop = 30;
+  const padRight = 4;
+  const padBot = 30;
+  const gap = 2; // gap between mini heatmaps
+
+  const availW = cw - padLeft - padRight;
+  const availH = ch - padTop - padBot;
+  const cellW = Math.floor((availW - (b[2] - 1) * gap) / (b[2] * b[0]));
+  const cellH = Math.floor((availH - (b[3] - 1) * gap) / (b[3] * b[1]));
+  const miniW = b[0] * cellW;
+  const miniH = b[1] * cellH;
+  const totalW = b[2] * miniW + (b[2] - 1) * gap;
+  const totalH = b[3] * miniH + (b[3] - 1) * gap;
+
+  const ox = padLeft + Math.floor((availW - totalW) / 2);
+  const oy = padTop + Math.floor((availH - totalH) / 2);
+
+  // Find normalization max across entire Q-table
+  let absMax = 0;
+  for (let i = 0; i < agent.qTable.length; i++) {
+    const v = Math.abs(agent.qTable[i]);
+    if (v > absMax) absMax = v;
+  }
+  if (absMax < 0.001) absMax = 0.001;
+
+  // Current state bins for highlight
+  let curX = -1, curXd = -1, curT = -1, curTd = -1;
+  if (!env.done) {
+    const state = env.getState();
+    if (state) {
+      const toBin = (val, idx) => {
+        const [lo, hi] = agent.ranges[idx];
+        return Math.min(Math.floor((Math.max(lo, Math.min(hi, val)) - lo) / (hi - lo) * b[idx]), b[idx] - 1);
+      };
+      curX = toBin(state[0], 0); curXd = toBin(state[1], 1);
+      curT = toBin(state[2], 2); curTd = toBin(state[3], 3);
+    }
+  }
+
+  // Draw mini heatmaps: outer rows = θ̇, outer cols = θ
+  for (let tdBin = 0; tdBin < b[3]; tdBin++) {
+    for (let tBin = 0; tBin < b[2]; tBin++) {
+      const mx = ox + tBin * (miniW + gap);
+      const my = oy + tdBin * (miniH + gap);
+
+      // Each mini heatmap: inner rows = ẋ, inner cols = x
+      for (let xdBin = 0; xdBin < b[1]; xdBin++) {
+        for (let xBin = 0; xBin < b[0]; xBin++) {
+          const si = xBin * b[1] * b[2] * b[3] + xdBin * b[2] * b[3] + tBin * b[3] + tdBin;
+          const q0 = agent.getQ(si, 0);
+          const q1 = agent.getQ(si, 1);
+          const maxQ = Math.max(Math.abs(q0), Math.abs(q1));
+          if (maxQ < absMax * 0.01) continue;
+
+          const norm = maxQ / absMax;
+          const best = q0 >= q1 ? 0 : 1;
+          const alpha = 0.08 + norm * 0.88;
+          ctx.fillStyle = best === 0
+            ? `rgba(83,83,83,${alpha})`
+            : `rgba(180,80,80,${alpha})`;
+          ctx.fillRect(mx + xBin * cellW, my + xdBin * cellH, cellW, cellH);
+        }
+      }
+
+      // Outline for current state's mini heatmap
+      if (tBin === curT && tdBin === curTd) {
+        ctx.strokeStyle = '#535353';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(mx - 1, my - 1, miniW + 2, miniH + 2);
+        // Highlight current cell within mini heatmap
+        if (curX >= 0) {
+          ctx.strokeStyle = '#f7f7f7';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(mx + curX * cellW, my + curXd * cellH, cellW, cellH);
+        }
+      }
+    }
+  }
+
+  // Grid lines between mini heatmaps
+  ctx.strokeStyle = '#e0e0e0';
+  ctx.lineWidth = 0.5;
+  for (let i = 1; i < b[2]; i++) {
+    const gx = ox + i * (miniW + gap) - gap / 2 - 0.5;
+    ctx.beginPath(); ctx.moveTo(gx, oy); ctx.lineTo(gx, oy + totalH); ctx.stroke();
+  }
+  for (let i = 1; i < b[3]; i++) {
+    const gy = oy + i * (miniH + gap) - gap / 2 - 0.5;
+    ctx.beginPath(); ctx.moveTo(ox, gy); ctx.lineTo(ox + totalW, gy); ctx.stroke();
+  }
+
+  // Outer axis labels
+  ctx.fillStyle = '#535353';
+  ctx.font = '11px "Press Start 2P", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('\u03B8 pole angle \u2192', ox + totalW / 2, oy - 12);
+  ctx.save();
+  ctx.translate(14, oy + totalH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillText('\u03B8\u0307 pole speed \u2192', 0, 0);
+  ctx.restore();
+
+  // Inner axes note + legend (bottom)
+  ctx.font = '8px "Press Start 2P", monospace';
+  ctx.textAlign = 'left';
+  const ly = oy + totalH + 18;
+  ctx.fillStyle = '#aaa';
+  ctx.fillText('each block: x \u00D7 \u1E8B', ox, ly);
+  ctx.fillStyle = 'rgb(83,83,83)';
+  ctx.fillRect(ox + totalW - 190, ly - 7, 10, 10);
+  ctx.fillStyle = '#535353';
+  ctx.fillText('\u2190 LEFT', ox + totalW - 174, ly);
+  ctx.fillStyle = 'rgb(180,80,80)';
+  ctx.fillRect(ox + totalW - 100, ly - 7, 10, 10);
+  ctx.fillStyle = '#535353';
+  ctx.fillText('\u2192 RIGHT', ox + totalW - 84, ly);
+}
+
+// Draw a single neural network within a rectangular region of the canvas
+function renderOneNet(ctx, net, ox, w, ch, cfg) {
+  const nHidden = net.weights[0].length;   // 32
+  const nInput = net.weights[0][0].length; // 4
+  const nOutput = net.weights[1].length;   // 1 or 2
+
+  const hasData = net.lastActivations && net.lastActivations.length > 0;
+  const activations = hasData ? net.lastActivations
+    : [new Float64Array(nInput), new Float64Array(nHidden), new Float64Array(nOutput)];
+  const probs = (hasData && net.lastProbs) ? net.lastProbs
+    : new Array(nOutput).fill(1 / nOutput);
+  const inputAct = activations[0];
+  const hiddenAct = activations[1];
+
+  const r = 4;
+  const titleH = cfg.title ? 10 : 0;
+  const rowY = [22 + titleH, 68 + titleH / 2, 118 + titleH / 3];
+  const inputLabels = ['x', 'ẋ', 'θ', 'θ̇'];
+  const inputRanges = [2.4, 3.0, 0.21, 3.0];
+  const margin = cfg.dual ? 24 : 60;
+  const fontSize = cfg.dual ? '10px' : '13px';
+
+  // Title
+  if (cfg.title) {
+    ctx.fillStyle = '#cacaca';
+    ctx.font = '6px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(cfg.title, ox + w / 2, 9);
+  }
+
+  // Node positions
+  const inputNodes = [];
+  const iSpacing = (w - margin * 2) / (nInput - 1);
+  for (let i = 0; i < nInput; i++) inputNodes.push({ x: ox + margin + i * iSpacing, y: rowY[0] });
+
+  const hiddenNodes = [];
+  const hSpacing = (w - margin * 2) / (nHidden - 1);
+  for (let h = 0; h < nHidden; h++) hiddenNodes.push({ x: ox + margin + h * hSpacing, y: rowY[1] });
+
+  const outputNodes = [];
+  if (nOutput === 1) {
+    outputNodes.push({ x: ox + w / 2, y: rowY[2] });
+  } else {
+    const outSpacing = cfg.dual ? 50 : 80;
+    const outStart = ox + w / 2 - outSpacing / 2;
+    for (let o = 0; o < nOutput; o++) outputNodes.push({ x: outStart + o * outSpacing, y: rowY[2] });
+  }
+
+  // Signal normalization
+  let maxSig1 = 0.001;
+  for (let h = 0; h < nHidden; h++)
+    for (let i = 0; i < nInput; i++) {
+      const s = Math.abs(net.weights[0][h][i] * inputAct[i]);
+      if (s > maxSig1) maxSig1 = s;
+    }
+  let maxSig2 = 0.001;
+  for (let o = 0; o < nOutput; o++)
+    for (let h = 0; h < nHidden; h++) {
+      const s = Math.abs(net.weights[1][o][h] * hiddenAct[h]);
+      if (s > maxSig2) maxSig2 = s;
+    }
+
+  // Connections: input → hidden
+  for (let h = 0; h < nHidden; h++)
+    for (let i = 0; i < nInput; i++) {
+      const signal = net.weights[0][h][i] * inputAct[i];
+      const alpha = Math.max(0.04, Math.min(1, Math.abs(signal) / maxSig1));
+      ctx.strokeStyle = signal >= 0 ? `rgba(83,83,83,${alpha})` : `rgba(180,80,80,${alpha})`;
+      ctx.lineWidth = 0.5 + alpha * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(inputNodes[i].x, inputNodes[i].y + r);
+      ctx.lineTo(hiddenNodes[h].x, hiddenNodes[h].y - r);
+      ctx.stroke();
+    }
+
+  // Connections: hidden → output
+  for (let o = 0; o < nOutput; o++)
+    for (let h = 0; h < nHidden; h++) {
+      const signal = net.weights[1][o][h] * hiddenAct[h];
+      const alpha = Math.max(0.04, Math.min(1, Math.abs(signal) / maxSig2));
+      ctx.strokeStyle = signal >= 0 ? `rgba(83,83,83,${alpha})` : `rgba(180,80,80,${alpha})`;
+      ctx.lineWidth = 0.5 + alpha * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(hiddenNodes[h].x, hiddenNodes[h].y + r);
+      ctx.lineTo(outputNodes[o].x, outputNodes[o].y - r);
+      ctx.stroke();
+    }
+
+  // Input nodes
+  for (let i = 0; i < nInput; i++) {
+    const norm = Math.min(1, Math.abs(inputAct[i]) / inputRanges[i]);
+    ctx.fillStyle = `rgba(83,83,83,${0.08 + norm * 0.85})`;
+    ctx.strokeStyle = '#535353';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(inputNodes[i].x, inputNodes[i].y, r, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#535353';
+    ctx.font = fontSize + ' sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(inputLabels[i] + ' (' + inputAct[i].toFixed(2) + ')', inputNodes[i].x, inputNodes[i].y - r - 3);
+  }
+
+  // Hidden nodes
+  let maxH = 0.001;
+  for (let h = 0; h < nHidden; h++) if (hiddenAct[h] > maxH) maxH = hiddenAct[h];
+  for (let h = 0; h < nHidden; h++) {
+    const norm = Math.min(1, hiddenAct[h] / maxH);
+    ctx.fillStyle = `rgba(83,83,83,${0.05 + norm * 0.9})`;
+    ctx.strokeStyle = '#535353';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(hiddenNodes[h].x, hiddenNodes[h].y, r, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+  }
+
+  // Output nodes
+  if (cfg.outputMode === 'value') {
+    // Single value output (PPO value net)
+    const val = activations[activations.length - 1][0];
+    ctx.fillStyle = '#535353';
+    ctx.strokeStyle = '#535353';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(outputNodes[0].x, outputNodes[0].y, r + 1, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#535353';
+    ctx.font = (cfg.dual ? 'bold 10px' : 'bold 13px') + ' sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('V=' + val.toFixed(1), outputNodes[0].x, outputNodes[0].y + r + 14);
+  } else {
+    // Action outputs (prob or qvalue)
+    const chosenAction = net.lastAction != null ? net.lastAction : (probs[0] > probs[1] ? 0 : 1);
+    const outLabels = cfg.outputLabels || ['←', '→'];
+    for (let o = 0; o < nOutput; o++) {
+      const prob = probs[o];
+      const isChosen = o === chosenAction;
+      ctx.fillStyle = isChosen ? '#535353' : `rgba(83,83,83,${0.08 + prob * 0.85})`;
+      ctx.strokeStyle = '#535353';
+      ctx.lineWidth = isChosen ? 2.5 : 1.5;
+      ctx.beginPath();
+      ctx.arc(outputNodes[o].x, outputNodes[o].y, isChosen ? r + 2 : r, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#535353';
+      ctx.font = (isChosen ? 'bold ' : '') + fontSize + ' sans-serif';
+      ctx.textAlign = 'center';
+      let label;
+      if (cfg.outputMode === 'qvalue') {
+        label = outLabels[o] + ' (Q:' + activations[activations.length - 1][o].toFixed(1) + ')';
+      } else {
+        label = outLabels[o] + ' (' + Math.round(prob * 100) + '%)';
+      }
+      ctx.fillText(label, outputNodes[o].x, outputNodes[o].y + r + 14);
+    }
+  }
+
+  // Row labels (only for single/left panel)
+  if (!cfg.dual || cfg.showRowLabels) {
+    ctx.fillStyle = '#cacaca';
+    ctx.font = '5px "Press Start 2P", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('INPUT', ox + margin - 10, rowY[0] + 2);
+    ctx.fillText('HIDDEN', ox + margin - 10, rowY[1] + 2);
+    ctx.fillText('OUTPUT', ox + margin - 10, rowY[2] + 2);
+  }
+}
+
+function renderNN() {
+  const net = agent.net;
+  const cw = nnCanvas.width;
+  const ch = nnCanvas.height;
+  nnCtx.clearRect(0, 0, cw, ch);
+  nnCtx.fillStyle = '#f7f7f7';
+  nnCtx.fillRect(0, 0, cw, ch);
+
+  if (!net) { renderQTable(cw, ch); return; }
+
+  const secondNet = agent.valueNet || agent.targetNet || null;
+
+  if (secondNet) {
+    const halfW = Math.floor(cw / 2) - 2;
+    const primaryCfg = currentAlgo === 'dqn'
+      ? { title: 'Q-NET', outputLabels: ['←', '→'], outputMode: 'qvalue', dual: true, showRowLabels: true }
+      : { title: 'POLICY', outputLabels: ['←', '→'], outputMode: 'prob', dual: true, showRowLabels: true };
+    renderOneNet(nnCtx, net, 0, halfW, ch, primaryCfg);
+    // Divider
+    nnCtx.strokeStyle = '#e0e0e0';
+    nnCtx.lineWidth = 1;
+    nnCtx.beginPath();
+    nnCtx.moveTo(halfW + 1, 4);
+    nnCtx.lineTo(halfW + 1, ch - 4);
+    nnCtx.stroke();
+    // Secondary net config
+    const secondCfg = agent.valueNet
+      ? { title: 'VALUE', outputLabels: ['V'], outputMode: 'value', dual: true }
+      : { title: 'TARGET', outputLabels: ['←', '→'], outputMode: 'qvalue', dual: true };
+    renderOneNet(nnCtx, secondNet, halfW + 3, halfW, ch, secondCfg);
+  } else {
+    renderOneNet(nnCtx, net, 0, cw, ch, { outputLabels: ['←', '→'], outputMode: 'prob', showRowLabels: true });
+  }
+}
+
+// ── Chart ──
+const chartCanvas = document.getElementById('chart');
+const chartCtx = chartCanvas.getContext('2d');
+
+function renderChart(rewards) {
+  const cw = chartCanvas.width;
+  const ch = chartCanvas.height;
+  chartCtx.clearRect(0, 0, cw, ch);
+
+  chartCtx.fillStyle = '#f7f7f7';
+  chartCtx.fillRect(0, 0, cw, ch);
+
+  if (rewards.length < 2) {
+    chartCtx.fillStyle = '#cacaca';
+    chartCtx.font = '8px "Press Start 2P", monospace';
+    chartCtx.textAlign = 'center';
+    chartCtx.fillText('TRAINING DATA WILL APPEAR HERE', cw / 2, ch / 2);
+    return;
+  }
+
+  const padding = { top: 16, right: 16, bottom: 24, left: 44 };
+  const plotW = cw - padding.left - padding.right;
+  const plotH = ch - padding.top - padding.bottom;
+
+  let maxR = TRAIN_MAX_STEPS;
+  for (let i = 0; i < rewards.length; i++) { if (rewards[i] > maxR) maxR = rewards[i]; }
+
+  // Grid lines
+  chartCtx.fillStyle = '#e8e8e8';
+  for (let i = 0; i <= 4; i++) {
+    const y = padding.top + (plotH / 4) * i;
+    chartCtx.fillRect(padding.left, y, plotW, 1);
+
+    chartCtx.fillStyle = '#999';
+    chartCtx.font = '6px "Press Start 2P", monospace';
+    chartCtx.textAlign = 'right';
+    chartCtx.fillText(Math.round(maxR - (maxR / 4) * i), padding.left - 6, y + 3);
+    chartCtx.fillStyle = '#e8e8e8';
+  }
+
+  const step = plotW / Math.max(1, rewards.length - 1);
+
+  // Data dots
+  chartCtx.fillStyle = '#cacaca';
+  for (let i = 0; i < rewards.length; i++) {
+    const x = padding.left + i * step;
+    const y = padding.top + plotH - (rewards[i] / maxR) * plotH;
+    chartCtx.fillRect(Math.round(x), Math.round(y), 2, 2);
+  }
+
+  // Moving average line
+  if (rewards.length >= 20) {
+    chartCtx.fillStyle = '#535353';
+    let prevX, prevY;
+    for (let i = 19; i < rewards.length; i++) {
+      const slice = rewards.slice(i - 19, i + 1);
+      const avg = slice.reduce((a, b) => a + b) / slice.length;
+      const x = padding.left + i * step;
+      const y = padding.top + plotH - (avg / maxR) * plotH;
+      if (prevX !== undefined) {
+        // Draw line as pixel blocks
+        const dx = x - prevX;
+        const dy = y - prevY;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const numPx = Math.ceil(dist / 2);
+        for (let j = 0; j <= numPx; j++) {
+          const t = j / numPx;
+          chartCtx.fillRect(Math.round(prevX + dx * t), Math.round(prevY + dy * t), 2, 2);
+        }
+      }
+      prevX = x;
+      prevY = y;
+    }
+  }
+
+  // Solve threshold
+  const threshY = padding.top + plotH - (SOLVE_THRESHOLD / maxR) * plotH;
+  chartCtx.fillStyle = '#999';
+  for (let x = padding.left; x < cw - padding.right; x += 6) {
+    chartCtx.fillRect(x, threshY, 3, 1);
+  }
+  chartCtx.font = '6px "Press Start 2P", monospace';
+  chartCtx.textAlign = 'left';
+  chartCtx.fillText('SOLVED', padding.left + 4, threshY - 4);
+
+  // Legend (top-right)
+  const legendX = cw - padding.right - 8;
+  const legendY = padding.top + 6;
+  chartCtx.font = '6px "Press Start 2P", monospace';
+  chartCtx.textAlign = 'right';
+  // Episode bar
+  chartCtx.fillStyle = '#cacaca';
+  chartCtx.fillRect(legendX - 50, legendY - 4, 8, 8);
+  chartCtx.fillStyle = '#999';
+  chartCtx.fillText('EPISODE', legendX - 54, legendY + 3);
+  // Avg line
+  chartCtx.fillStyle = '#535353';
+  chartCtx.fillRect(legendX - 50, legendY + 10, 8, 8);
+  chartCtx.fillStyle = '#999';
+  chartCtx.fillText('AVG (20)', legendX - 54, legendY + 17);
+
+  // Selected episode highlight
+  if (selectedEpisode !== null && selectedEpisode < rewards.length) {
+    const selX = padding.left + selectedEpisode * step;
+    chartCtx.fillStyle = 'rgba(83, 83, 83, 0.3)';
+    chartCtx.fillRect(selX - 1, padding.top, 3, plotH);
+    // Triangle marker at top
+    chartCtx.fillStyle = '#535353';
+    chartCtx.beginPath();
+    chartCtx.moveTo(selX, padding.top);
+    chartCtx.lineTo(selX - 4, padding.top - 6);
+    chartCtx.lineTo(selX + 4, padding.top - 6);
+    chartCtx.fill();
+    // Episode label
+    chartCtx.font = '6px "Press Start 2P", monospace';
+    chartCtx.textAlign = 'center';
+    chartCtx.fillText('EP ' + selectedEpisode, selX, padding.top - 8);
+  }
+
+  // X axis
+  chartCtx.fillStyle = '#999';
+  chartCtx.font = '8px "Press Start 2P", monospace';
+  chartCtx.textAlign = 'center';
+  chartCtx.fillText('CLICK TO WATCH PAST AGENT', cw / 2, ch - 4);
+}
+
+// ── Game State ──
+const env = new CartPoleEnv();
+let agent = algoState[currentAlgo].agent;
+let mode = 'human';
+let humanAction = -1;
+let isTraining = false;
+let isWatching = false;
+let nnPaused = false;
+let nnStepOnce = false;
+let nnDidStep = false;
+let nnPendingAction = null;
+let lastExecutedAction = null;
+let humanScore = 0;
+let humanBest = 0;
+let humanEpisode = 0;
+let humanSlowMo = true;
+let humanFrameSkip = 0;
+let humanWaiting = true;
+
+env.reset();
+env.thetaThreshold = THETA_THRESHOLD_VISUAL;
+
+// Migrate old save format
+try {
+  const oldRaw = localStorage.getItem('cartpole-agent');
+  if (oldRaw) {
+    if (!localStorage.getItem('cartpole-reinforce')) {
+      localStorage.setItem('cartpole-reinforce', oldRaw);
+    }
+    localStorage.removeItem('cartpole-agent');
+  }
+} catch (e) {}
+
+// Restore saved agents on startup
+let anyLoaded = false;
+for (const algo of ALGOS) {
+  if (loadAlgo(algo)) {
+    console.log('Restored ' + algo + ': ' + algoState[algo].agent.episodeRewards.length + ' episodes');
+    const st = algoState[algo];
+    if (st.snapshots.length === 0 && st.agent.episodeRewards.length > 0 && st.agent.takeSnapshot()) {
+      st.snapshots.push({ episode: st.agent.episodeRewards.length, data: st.agent.takeSnapshot() });
+    }
+    anyLoaded = true;
+  }
+}
+// Sync globals from current algo
+agent = algoState[currentAlgo].agent;
+weightSnapshots = algoState[currentAlgo].snapshots;
+snapshotInterval = algoState[currentAlgo].snapshotInterval;
+selectedEpisode = algoState[currentAlgo].selectedEpisode;
+
+
+// ── Input ──
+document.addEventListener('keydown', (e) => {
+  if (mode !== 'human') return;
+  if (e.key === ' ') {
+    if (humanWaiting || env.done) { resetEnv(); humanWaiting = false; }
+    e.preventDefault();
+  }
+  if (humanWaiting) return;
+  if (e.key === 'ArrowLeft') { humanAction = 0; e.preventDefault(); }
+  if (e.key === 'ArrowRight') { humanAction = 1; e.preventDefault(); }
+});
+
+// keyup not needed — action stays until the other key is pressed
+
+// ── UI ──
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-human').classList.toggle('active', m === 'human');
+  document.getElementById('btn-ai').classList.toggle('active', m === 'ai');
+  document.getElementById('controls-human').style.display = m === 'human' ? 'flex' : 'none';
+  document.getElementById('controls-ai').style.display = m === 'ai' ? 'flex' : 'none';
+  document.getElementById('algo-section').style.display = m === 'human' ? 'none' : '';
+  document.getElementById('stats-section').style.display = m === 'human' ? 'none' : '';
+  updateExplainText(m === 'human' ? 'human' : currentAlgo);
+
+  if (m === 'human') {
+    stopTraining();
+    isWatching = false;
+    env.thetaThreshold = THETA_THRESHOLD_VISUAL;
+    env.reset();
+    humanScore = 0;
+    humanWaiting = true;
+  }
+  updateStats();
+  if (m === 'ai') renderChart(agent.episodeRewards);
+}
+
+const ALGO_INFO = {
+  reinforce: {
+    title: 'REINFORCE',
+    history: 'Introduced by <b>Ronald Williams</b> in 1992. One of the earliest policy gradient methods, it showed that neural networks could learn to act by directly optimizing expected reward.',
+    algorithm: 'A Monte Carlo method: play a full episode, then for each action compute the discounted return. Increase the probability of actions that led to high returns. Uses a single network (4\u219232\u21922) that outputs action probabilities.',
+    links: [['Original paper', 'https://link.springer.com/article/10.1007/BF00992696']],
+    funFact: 'The name is actually a backronym: <b>RE</b>ward <b>I</b>ncrement = <b>N</b>onnegative <b>F</b>actor \u00d7 <b>O</b>ffset <b>R</b>einforcement \u00d7 <b>C</b>haracteristic <b>E</b>ligibility.',
+  },
+  qlearning: {
+    title: 'Q-Learning',
+    history: 'Introduced by <b>Chris Watkins</b> in his 1989 PhD thesis at Cambridge. Convergence proved by Watkins & Dayan in 1992 \u2014 one of the first RL algorithms with theoretical guarantees.',
+    algorithm: 'Discretizes state space with per-dimension bins [4,8,20,16] = 10,240 states, allocating more resolution to pole angle and speed than cart position. Maintains a Q-value for each state-action pair. Updates Q toward observed reward plus best future Q-value (Bellman equation). Explores via \u03b5-greedy.',
+    links: [['Watkins\' thesis', 'https://www.cs.rhul.ac.uk/~chrisw/new_thesis.pdf'], ['Sutton & Barto', 'http://incompleteideas.net/book/the-book.html']],
+    funFact: 'The simplest RL algorithm that provably converges to optimal. The "Q" stands for "quality" \u2014 the quality of an action in a given state.',
+  },
+  ppo: {
+    title: 'Proximal Policy Optimization',
+    history: 'Published by <b>John Schulman</b> et al. at OpenAI in 2017. A simpler alternative to TRPO, it quickly became the default RL algorithm in research and industry.',
+    algorithm: 'Actor-critic with two networks: a policy net (4\u219232\u21922) selects actions and a value net (4\u219232\u21921) estimates state values. Collects experience batches, computes advantages, then updates policy with a clipped objective that prevents destructively large steps.',
+    links: [['PPO paper', 'https://arxiv.org/abs/1707.06347']],
+    funFact: 'PPO trained <b>OpenAI Five</b> to defeat world champions at Dota 2, and is the standard RL algorithm used for RLHF training of LLMs like ChatGPT.',
+  },
+  dqn: {
+    title: 'Deep Q-Network',
+    history: 'Published by <b>Volodymyr Mnih</b> et al. at DeepMind in 2013, then in <i>Nature</i> in 2015. The first algorithm to learn control directly from raw pixels via deep learning.',
+    algorithm: 'Combines Q-learning with neural networks. A Q-net (4\u219232\u21922) estimates action values. A frozen target net provides stable training targets. Past experiences are stored in a replay buffer, sampled randomly to break temporal correlations.',
+    links: [['Nature paper', 'https://www.nature.com/articles/nature14236'], ['DeepMind blog', 'https://deepmind.google/discover/blog/deep-reinforcement-learning/']],
+    funFact: 'DQN achieved <b>human-level play</b> on 29 of 49 Atari games from raw pixels alone, kickstarting the deep RL revolution and leading to DeepMind\'s acquisition by Google.',
+  },
+};
+
+const CARTPOLE_INFO = {
+  title: 'CartPole',
+  history: 'First studied as a control problem in the 1960s, and formalized as an RL benchmark by <b>Barto, Sutton & Anderson</b> in their landmark 1983 paper "Neuronlike Adaptive Elements That Can Solve Difficult Learning Control Problems." It became the standard entry-point benchmark for reinforcement learning.',
+  description: 'A cart moves left or right on a frictionless track. A pole is hinged to the cart and will topple unless you keep it balanced by pushing the cart. The episode ends when the pole hits the ground, the cart leaves the track, or you survive <b>5000 steps</b> — a perfect run.',
+  links: [['Original 1983 paper', 'https://ieeexplore.ieee.org/document/6313077'], ['Gymnasium docs', 'https://gymnasium.farama.org/environments/classic_control/cart_pole/']],
+  funFact: 'CartPole is the "Hello, World" of reinforcement learning. Despite its simplicity, balancing it requires a <b>dynamic closed-loop policy</b> — the same core challenge behind bipedal robots, drone stabilization, and rocket booster landings.',
+};
+
+function updateExplainText(algo) {
+  if (algo === 'human') {
+    const info = CARTPOLE_INFO;
+    document.getElementById('explain-title').textContent = info.title;
+    const links = info.links.map(l => '<a href="' + l[1] + '" target="_blank" class="explain-link">' + l[0] + '</a>').join(' · ');
+    document.getElementById('explain-text').innerHTML =
+      '<p><b>HISTORY</b><br>' + info.history + '</p>' +
+      '<p><b>THE TASK</b><br>' + info.description + '</p>' +
+      '<p class="explain-links">' + links + '</p>' +
+      '<p><b>WHY IT MATTERS</b><br>' + info.funFact + '</p>';
+    return;
+  }
+  const info = ALGO_INFO[algo];
+  document.getElementById('explain-title').textContent = info.title;
+  const links = info.links.map(l => '<a href="' + l[1] + '" target="_blank" class="explain-link">' + l[0] + '</a>').join(' · ');
+  document.getElementById('explain-text').innerHTML =
+    '<p><b>HISTORY</b><br>' + info.history + '</p>' +
+    '<p><b>ALGORITHM</b><br>' + info.algorithm + '</p>' +
+    '<p class="explain-links">' + links + '</p>' +
+    '<p><b>CLAIM TO FAME</b><br>' + info.funFact + '</p>';
+}
+// Initial state: human mode, hide algo section and show CartPole info
+document.getElementById('algo-section').style.display = 'none';
+document.getElementById('stats-section').style.display = 'none';
+updateExplainText('human');
+
+function setAlgo(name) {
+  if (name === currentAlgo) return;
+  stopTraining();
+  isWatching = false;
+  currentWeightsBackup = null;
+
+  // Save current algo state
+  algoState[currentAlgo].snapshots = weightSnapshots;
+  algoState[currentAlgo].selectedEpisode = selectedEpisode;
+  algoState[currentAlgo].snapshotInterval = snapshotInterval;
+
+  // Switch
+  currentAlgo = name;
+  agent = algoState[name].agent;
+  weightSnapshots = algoState[name].snapshots;
+  selectedEpisode = algoState[name].selectedEpisode;
+  snapshotInterval = algoState[name].snapshotInterval;
+
+  // Update buttons
+  for (const algo of ALGOS) {
+    document.getElementById('btn-' + algo).classList.toggle('active', algo === name);
+  }
+
+  document.getElementById('nn-title').textContent = name === 'qlearning' ? 'Q-Table' : 'Neural Network';
+  // Resize NN canvas for Q-table (needs more vertical space for 4D grid)
+  nnCanvas.height = name === 'qlearning' ? 500 : 155;
+  updateExplainText(name);
+  updateStats();
+  updateButtons();
+  if (mode === 'ai') renderChart(agent.episodeRewards);
+  renderNN();
+  env.reset();
+}
+
+function updateStats() {
+  if (mode === 'human') {
+    document.getElementById('stat-score').textContent = humanScore;
+    document.getElementById('stat-best').textContent = humanBest;
+  } else {
+    const rewards = agent.episodeRewards;
+    const last = rewards.length > 0 ? rewards[rewards.length - 1] : 0;
+    document.getElementById('stat-score').textContent = last;
+    document.getElementById('stat-best').textContent = agent.bestReward;
+
+
+    const badge = document.getElementById('status-badge');
+    if (agent.solved) {
+      badge.style.display = 'inline-block';
+      badge.className = 'status-badge solved';
+      badge.textContent = 'SOLVED';
+    } else if (isTraining) {
+      badge.style.display = 'inline-block';
+      badge.className = 'status-badge training';
+      badge.textContent = 'TRAINING';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+}
+
+function resetEnv() {
+  env.reset();
+  humanScore = 0;
+  humanAction = -1;
+  nightActive = false;
+  nightTimer = 0;
+  document.getElementById('canvas').classList.remove('inverted');
+}
+
+function toggleTraining() {
+  if (isTraining) {
+    stopTraining();
+  } else {
+    startTraining();
+  }
+}
+
+let trainInterval = null;
+
+function updateButtons() {
+  const train = document.getElementById('btn-train');
+  const watch = document.getElementById('btn-watch');
+  train.classList.toggle('primary', isTraining);
+  watch.classList.toggle('primary', isWatching);
+  train.textContent = isTraining ? 'STOP TRAINING' : 'TRAIN AGENT';
+  // Reset pause when starting training
+  if (isTraining && nnPaused) {
+    nnPaused = false;
+    nnStepOnce = false;
+  }
+  updatePauseButtons();
+}
+
+function startTraining() {
+  isTraining = true;
+  isWatching = false;
+  env.thetaThreshold = THETA_THRESHOLD;
+  updateButtons();
+
+  const trainEnv = new CartPoleEnv(TRAIN_MAX_STEPS);
+  trainEnv.maxSteps = TRAIN_MAX_STEPS; // ensure current setting is used
+
+  let lastSnapshotEp = weightSnapshots.length > 0
+    ? weightSnapshots[weightSnapshots.length - 1].episode : 0;
+  let saveCounter = 0;
+
+  function trainBatch() {
+    if (!isTraining) return;
+
+    // Use a time budget: train as many episodes as fit in budget
+    const budget = 40;
+    const deadline = performance.now() + budget;
+    let count = 0;
+    while (performance.now() < deadline) {
+      agent.trainEpisode(trainEnv);
+      count++;
+
+      // Snapshot weights periodically
+      const ep = agent.episodeRewards.length;
+      if (ep - lastSnapshotEp >= snapshotInterval) {
+        const snap = agent.takeSnapshot();
+        if (snap) {
+          weightSnapshots.push({ episode: ep, data: snap });
+          lastSnapshotEp = ep;
+          if (weightSnapshots.length > MAX_SNAPSHOTS[currentAlgo]) {
+            thinSnapshots();
+          }
+        }
+      }
+    }
+
+    updateStats();
+    renderChart(agent.episodeRewards);
+
+    // Save to localStorage every 3 batches
+    saveCounter++;
+    if (saveCounter % 3 === 0) saveAgent();
+
+    // Show latest episode visually
+    env.reset();
+    env.x = trainEnv.x;
+    env.xDot = trainEnv.xDot;
+    env.theta = trainEnv.theta;
+    env.thetaDot = trainEnv.thetaDot;
+    env.steps = trainEnv.steps;
+    env.done = trainEnv.done;
+
+    // Populate NN activations for viz during training
+    if (agent.net) {
+      const s = env.getState();
+      agent.selectAction(s);
+      if (agent.valueNet) {
+        agent.valueNet.lastActivations = agent.valueNet.forward(s);
+      }
+      if (agent.targetNet) {
+        const ta = agent.targetNet.forward(s);
+        agent.targetNet.lastActivations = ta;
+        const qv = ta[ta.length - 1];
+        const mx = Math.max(qv[0], qv[1]);
+        const e0 = Math.exp(qv[0] - mx), e1 = Math.exp(qv[1] - mx);
+        agent.targetNet.lastProbs = [e0 / (e0 + e1), e1 / (e0 + e1)];
+      }
+    }
+
+    if (agent.solved) {
+      stopTraining();
+      saveAgent();
+    } else {
+      // Schedule next batch immediately (setTimeout 0 yields to browser for rendering)
+      trainInterval = setTimeout(trainBatch, 0);
+    }
+  }
+
+  trainInterval = setTimeout(trainBatch, 0);
+}
+
+function stopTraining() {
+  isTraining = false;
+  if (trainInterval) clearTimeout(trainInterval);
+  trainInterval = null;
+  updateButtons();
+  updateStats();
+  saveAgent();  // save on stop
+}
+
+function runAgent() {
+  stopTraining();
+  isWatching = true;
+  env.thetaThreshold = THETA_THRESHOLD_VISUAL;
+  updateButtons();
+
+  env.reset();
+}
+
+function resetAgent() {
+  stopTraining();
+  isWatching = false;
+  algoState[currentAlgo].agent = createAgent(currentAlgo);
+  agent = algoState[currentAlgo].agent;
+  currentWeightsBackup = null;
+  clearSavedAgent();
+  isWatching = false;
+  env.reset();
+  updateButtons();
+  updateStats();
+  renderChart([]);
+  document.getElementById('status-badge').style.display = 'none';
+}
+
+
+function toggleSlowMo() {
+  humanSlowMo = !humanSlowMo;
+  document.getElementById('btn-slowmo').classList.toggle('primary', humanSlowMo);
+}
+
+function updatePauseButtons() {
+  const pauseText = nnPaused ? '▶ PLAY' : '⏸ PAUSE';
+  const btnA = document.getElementById('btn-pause-ai');
+  btnA.textContent = pauseText;
+  btnA.classList.toggle('primary', nnPaused);
+  document.getElementById('btn-step-ai').disabled = !nnPaused;
+}
+
+function togglePause() {
+  nnPaused = !nnPaused;
+  updatePauseButtons();
+  // Preview next action when pausing in watch mode
+  if (nnPaused && isWatching && !env.done) {
+    agent.selectAction(env.getState());
+    nnPendingAction = agent.net ? agent.net.lastAction : null;
+  } else {
+    nnPendingAction = null;
+  }
+}
+
+function stepOnce() {
+  if (nnPaused) nnStepOnce = true;
+}
+
+// ── Clickable Chart (time-travel to past generations) ──
+let currentWeightsBackup = null;  // backup of current weights when viewing a snapshot
+
+function toggleMarathonMode() {
+  marathonMode = !marathonMode;
+  TRAIN_MAX_STEPS = marathonMode ? 5000 : 500;
+  SOLVE_THRESHOLD = marathonMode ? 4750 : 475;
+  // Reset solved state so training can continue under the new threshold
+  if (agent) agent.solved = false;
+  const badge = document.getElementById('marathon-badge');
+  badge.className = 'status-badge ' + (marathonMode ? 'solved' : 'training');
+  badge.style.borderStyle = marathonMode ? '' : 'dashed';
+  // Hide the SOLVED badge since the threshold changed
+  const statusBadge = document.getElementById('status-badge');
+  statusBadge.style.display = 'none';
+  renderChart(agent.episodeRewards);
+}
+
+chartCanvas.addEventListener('click', (e) => {
+  const rect = chartCanvas.getBoundingClientRect();
+  const scaleX = chartCanvas.width / rect.width;
+  const scaleY = chartCanvas.height / rect.height;
+  const clickX = (e.clientX - rect.left) * scaleX;
+  const clickY = (e.clientY - rect.top) * scaleY;
+
+  // Marathon toggle button at top-right (y < 14)
+  if (clickY < 14 && clickX > chartCanvas.width - 100) {
+    toggleMarathonMode();
+    return;
+  }
+
+  if (agent.episodeRewards.length < 2 || weightSnapshots.length === 0) return;
+
+  // Auto-switch to AI mode if needed
+  if (mode !== 'ai') setMode('ai');
+
+  const padding = { top: 16, right: 16, bottom: 24, left: 44 };
+  const plotW = chartCanvas.width - padding.left - padding.right;
+  const step = plotW / Math.max(1, agent.episodeRewards.length - 1);
+
+  const episodeIdx = Math.round((clickX - padding.left) / step);
+
+  if (episodeIdx < 0) {
+    // Clicked left of chart — select first snapshot
+    watchEpisode(weightSnapshots[0].episode);
+  } else if (episodeIdx >= agent.episodeRewards.length) {
+    // Clicked right of chart — select latest snapshot
+    watchEpisode(weightSnapshots[weightSnapshots.length - 1].episode);
+  } else {
+    watchEpisode(episodeIdx);
+  }
+});
+
+function watchEpisode(episodeIdx) {
+  // Find nearest snapshot
+  if (weightSnapshots.length === 0) return;
+
+  let best = weightSnapshots[0];
+  let bestDist = Math.abs(best.episode - episodeIdx);
+  for (const snap of weightSnapshots) {
+    const d = Math.abs(snap.episode - episodeIdx);
+    if (d < bestDist) { best = snap; bestDist = d; }
+  }
+
+  // Backup current weights (so WATCH AGENT / TRAIN can resume with latest)
+  if (!currentWeightsBackup) {
+    currentWeightsBackup = agent.takeSnapshot();
+  }
+
+  // Load snapshot weights
+  agent.loadSnapshot(best.data || best.net);
+
+  // Switch to watch mode
+  stopTraining();
+  isWatching = true;
+  env.thetaThreshold = THETA_THRESHOLD_VISUAL;
+  updateButtons();
+  selectedEpisode = best.episode;
+  env.reset();
+
+  renderChart(agent.episodeRewards);
+}
+
+// Restore current weights when switching back to training or normal watch
+const _origRunAgent = runAgent;
+runAgent = function() {
+  if (currentWeightsBackup) {
+    agent.loadSnapshot(currentWeightsBackup);
+    currentWeightsBackup = null;
+  }
+  selectedEpisode = null;
+
+  _origRunAgent();
+  renderChart(agent.episodeRewards);
+};
+
+const _origStartTraining = startTraining;
+startTraining = function() {
+  if (currentWeightsBackup) {
+    agent.loadSnapshot(currentWeightsBackup);
+    currentWeightsBackup = null;
+  }
+  selectedEpisode = null;
+  _origStartTraining();
+};
+
+// ── Game Loop ──
+let lastTime = 0;
+const FRAME_INTERVAL = 1000 / 60;
+
+function gameLoop(timestamp) {
+  requestAnimationFrame(gameLoop);
+
+  if (timestamp - lastTime < FRAME_INTERVAL) return;
+  lastTime = timestamp;
+  nnDidStep = false;
+
+  if (mode === 'human') {
+    nnDidStep = nnStepOnce;
+    const shouldStep = !nnPaused || nnStepOnce;
+    nnStepOnce = false;
+    if (!env.done && shouldStep && !humanWaiting) {
+      // Slow-mo: skip physics on some frames (still render every frame)
+      if (humanSlowMo && !nnPaused) {
+        humanFrameSkip = (humanFrameSkip + 1) % 4;
+        if (humanFrameSkip !== 0) { render(env); return; }
+      }
+      const action = humanAction === -1 ? 0 : humanAction;
+      if (humanAction === -1) humanAction = 0;
+      env.step(action);
+      humanScore = env.steps;
+      if (humanScore > humanBest) humanBest = humanScore;
+      if (env.done) { humanEpisode++; humanWaiting = true; }
+    }
+    updateStats();
+  } else if (isWatching) {
+    nnDidStep = nnStepOnce;
+    const shouldStep = !nnPaused || nnStepOnce;
+    nnStepOnce = false;
+    if (!env.done && shouldStep) {
+      // If paused stepping: execute the previewed action, then preview next
+      if (nnPaused && nnPendingAction != null) {
+        lastExecutedAction = nnPendingAction;
+        env.step(nnPendingAction);
+        nnPendingAction = null;
+        if (env.done) {
+          setTimeout(() => { if (isWatching && !nnPaused) env.reset(); }, 1000);
+        }
+        updateStats();
+      } else if (!nnPaused) {
+        // Normal playback: select and execute immediately
+        const { action } = agent.selectAction(env.getState());
+        lastExecutedAction = action;
+        env.step(action);
+        if (env.done) {
+          setTimeout(() => { if (isWatching && !nnPaused) env.reset(); }, 1000);
+        }
+        updateStats();
+      }
+      // Preview next action (updates NN viz to show what will happen next)
+      if (!env.done) {
+        const curState = env.getState();
+        agent.selectAction(curState);
+        nnPendingAction = agent.net ? agent.net.lastAction : null;
+        // Populate secondary net activations for dual viz
+        if (agent.valueNet) {
+          const va = agent.valueNet.forward(curState);
+          agent.valueNet.lastActivations = va;
+        }
+        if (agent.targetNet) {
+          const ta = agent.targetNet.forward(curState);
+          agent.targetNet.lastActivations = ta;
+          const qv = ta[ta.length - 1];
+          const mx = Math.max(qv[0], qv[1]);
+          const e0 = Math.exp(qv[0] - mx), e1 = Math.exp(qv[1] - mx);
+          agent.targetNet.lastProbs = [e0 / (e0 + e1), e1 / (e0 + e1)];
+        }
+      }
+    }
+  }
+
+  render(env);
+  renderNN();
+}
+
+// Save all algos before leaving
+function saveAllAlgos() {
+  algoState[currentAlgo].agent = agent;
+  algoState[currentAlgo].snapshots = weightSnapshots;
+  const origAlgo = currentAlgo, origAgent = agent, origSnaps = weightSnapshots;
+  for (const algo of ALGOS) {
+    if (algoState[algo].agent.episodeRewards.length > 0) {
+      currentAlgo = algo; agent = algoState[algo].agent; weightSnapshots = algoState[algo].snapshots;
+      saveAgent();
+    }
+  }
+  currentAlgo = origAlgo; agent = origAgent; weightSnapshots = origSnaps;
+}
+window.addEventListener('beforeunload', saveAllAlgos);
+window.addEventListener('pagehide', saveAllAlgos);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveAllAlgos();
+});
+
+// Start
+renderChart(agent.episodeRewards);
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
