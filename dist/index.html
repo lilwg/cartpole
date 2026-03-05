@@ -341,6 +341,30 @@ canvas {
   border: 1px solid #535353;
 }
 
+.mobile-dpad {
+  display: none;
+}
+
+.dpad-btn {
+  flex: 1;
+  height: 72px;
+  border: 2px solid #535353;
+  background: #f7f7f7;
+  color: #535353;
+  font-family: inherit;
+  font-size: 28px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  transition: background 0.05s, color 0.05s;
+}
+
+.dpad-btn:active {
+  background: #535353;
+  color: #f7f7f7;
+}
+
 @media (max-width: 960px) {
   body {
     padding: 12px;
@@ -364,6 +388,11 @@ canvas {
   #canvas {
     width: 100%;
     height: auto;
+  }
+
+  .mobile-dpad {
+    display: flex;
+    gap: 8px;
   }
 
   .panel {
@@ -394,6 +423,11 @@ canvas {
 <div class="main-col">
 <div class="container">
   <canvas id="canvas" width="608" height="400"></canvas>
+
+  <div class="mobile-dpad" id="mobile-dpad">
+    <button class="dpad-btn" id="dpad-left">◄</button>
+    <button class="dpad-btn" id="dpad-right">►</button>
+  </div>
 
   <div class="panel">
     <div class="section">
@@ -1458,9 +1492,11 @@ function render(env) {
       ctx.font = '10px "Press Start 2P", monospace';
       ctx.fillText(isTouchDevice() ? 'TAP TO PLAY' : 'PRESS SPACE TO PLAY', W / 2, groundAreaCenter - 11);
     }
-    ctx.font = '9px "Press Start 2P", monospace';
-    ctx.fillStyle = '#999';
-    ctx.fillText(isTouchDevice() ? 'TOUCH TO STEER' : '< > TO STEER', W / 2, groundAreaCenter + 11);
+    if (!isTouchDevice()) {
+      ctx.font = '9px "Press Start 2P", monospace';
+      ctx.fillStyle = '#999';
+      ctx.fillText('< > TO STEER', W / 2, groundAreaCenter + 11);
+    }
   }
   if (env.done && env.steps >= MAX_STEPS) {
     ctx.fillStyle = '#535353';
@@ -2020,24 +2056,29 @@ gameCanvas.addEventListener('touchstart', (e) => {
   if (mode !== 'human') return;
   e.preventDefault();
   if (humanWaiting || env.done) { resetEnv(); humanWaiting = false; }
-  const touch = e.touches[0];
-  const rect = gameCanvas.getBoundingClientRect();
-  humanAction = (touch.clientX - rect.left) < rect.width / 2 ? 0 : 1;
 }, { passive: false });
 
-gameCanvas.addEventListener('touchmove', (e) => {
-  if (mode !== 'human') return;
+// ── D-pad buttons ──
+const dpadLeft = document.getElementById('dpad-left');
+const dpadRight = document.getElementById('dpad-right');
+
+function dpadStart(action, e) {
   e.preventDefault();
-  const touch = e.touches[0];
-  const rect = gameCanvas.getBoundingClientRect();
-  humanAction = (touch.clientX - rect.left) < rect.width / 2 ? 0 : 1;
-}, { passive: false });
-
-gameCanvas.addEventListener('touchend', (e) => {
   if (mode !== 'human') return;
+  if (humanWaiting || env.done) { resetEnv(); humanWaiting = false; }
+  humanAction = action;
+}
+function dpadEnd(e) {
   e.preventDefault();
   humanAction = -1;
-}, { passive: false });
+}
+
+dpadLeft.addEventListener('touchstart',  (e) => dpadStart(0, e), { passive: false });
+dpadLeft.addEventListener('touchend',    dpadEnd, { passive: false });
+dpadLeft.addEventListener('touchcancel', dpadEnd, { passive: false });
+dpadRight.addEventListener('touchstart',  (e) => dpadStart(1, e), { passive: false });
+dpadRight.addEventListener('touchend',    dpadEnd, { passive: false });
+dpadRight.addEventListener('touchcancel', dpadEnd, { passive: false });
 
 // ── UI ──
 function setMode(m) {
@@ -2048,6 +2089,7 @@ function setMode(m) {
   document.getElementById('controls-ai').style.display = m === 'ai' ? 'flex' : 'none';
   document.getElementById('algo-section').style.display = m === 'human' ? 'none' : '';
   document.getElementById('stats-section').style.display = m === 'human' ? 'none' : '';
+  document.getElementById('mobile-dpad').style.display = m === 'human' ? '' : 'none';
   updateExplainText(m === 'human' ? 'human' : currentAlgo);
 
   if (m === 'human') {
@@ -2494,7 +2536,6 @@ function gameLoop(timestamp) {
         if (humanFrameSkip !== 0) { render(env); return; }
       }
       const action = humanAction === -1 ? 0 : humanAction;
-      if (humanAction === -1) humanAction = 0;
       env.step(action);
       humanScore = env.steps;
       if (humanScore > humanBest) humanBest = humanScore;
