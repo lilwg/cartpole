@@ -340,6 +340,49 @@ canvas {
   color: #f7f7f7;
   border: 1px solid #535353;
 }
+
+@media (max-width: 960px) {
+  body {
+    padding: 12px;
+  }
+
+  h1 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+
+  .main-col {
+    width: 100%;
+    gap: 16px;
+  }
+
+  .container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #canvas {
+    width: 100%;
+    height: auto;
+  }
+
+  .panel {
+    width: 100%;
+    height: auto;
+  }
+
+  .chart-row {
+    flex-direction: column;
+  }
+
+  .left-stack {
+    width: 100%;
+  }
+
+  .explain-panel {
+    width: 100%;
+  }
+}
 </style>
 </head>
 <body>
@@ -1411,11 +1454,11 @@ function render(env) {
     if (humanWaiting) {
       ctx.fillStyle = '#535353';
       ctx.font = '10px "Press Start 2P", monospace';
-      ctx.fillText('PRESS SPACE TO PLAY', W / 2, groundAreaCenter - 11);
+      ctx.fillText(isTouchDevice() ? 'TAP TO PLAY' : 'PRESS SPACE TO PLAY', W / 2, groundAreaCenter - 11);
     }
     ctx.font = '9px "Press Start 2P", monospace';
     ctx.fillStyle = '#999';
-    ctx.fillText('< > TO STEER', W / 2, groundAreaCenter + 11);
+    ctx.fillText(isTouchDevice() ? 'TOUCH TO STEER' : '< > TO STEER', W / 2, groundAreaCenter + 11);
   }
   if (env.done && env.steps >= MAX_STEPS) {
     ctx.fillStyle = '#535353';
@@ -1964,6 +2007,35 @@ document.addEventListener('keydown', (e) => {
 });
 
 // keyup not needed — action stays until the other key is pressed
+
+// ── Touch ──
+function isTouchDevice() {
+  return window.matchMedia('(pointer: coarse)').matches;
+}
+
+const gameCanvas = document.getElementById('canvas');
+gameCanvas.addEventListener('touchstart', (e) => {
+  if (mode !== 'human') return;
+  e.preventDefault();
+  if (humanWaiting || env.done) { resetEnv(); humanWaiting = false; }
+  const touch = e.touches[0];
+  const rect = gameCanvas.getBoundingClientRect();
+  humanAction = (touch.clientX - rect.left) < rect.width / 2 ? 0 : 1;
+}, { passive: false });
+
+gameCanvas.addEventListener('touchmove', (e) => {
+  if (mode !== 'human') return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = gameCanvas.getBoundingClientRect();
+  humanAction = (touch.clientX - rect.left) < rect.width / 2 ? 0 : 1;
+}, { passive: false });
+
+gameCanvas.addEventListener('touchend', (e) => {
+  if (mode !== 'human') return;
+  e.preventDefault();
+  humanAction = -1;
+}, { passive: false });
 
 // ── UI ──
 function setMode(m) {
