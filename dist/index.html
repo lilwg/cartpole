@@ -525,7 +525,7 @@ class CartPoleEnv {
   }
 
   step(action) {
-    const force = action === 1 ? FORCE_MAG : action === 0 ? -FORCE_MAG : 0;
+    const force = action === 1 ? FORCE_MAG : -FORCE_MAG;
     const cosTheta = Math.cos(this.theta);
     const sinTheta = Math.sin(this.theta);
 
@@ -2025,20 +2025,6 @@ gameCanvas.addEventListener('touchstart', (e) => {
   humanAction = (touch.clientX - rect.left) < rect.width / 2 ? 0 : 1;
 }, { passive: false });
 
-gameCanvas.addEventListener('touchmove', (e) => {
-  if (mode !== 'human') return;
-  e.preventDefault();
-  const touch = e.touches[0];
-  const rect = gameCanvas.getBoundingClientRect();
-  humanAction = (touch.clientX - rect.left) < rect.width / 2 ? 0 : 1;
-}, { passive: false });
-
-gameCanvas.addEventListener('touchend', (e) => {
-  if (mode !== 'human') return;
-  e.preventDefault();
-  humanAction = -1;
-}, { passive: false });
-
 // ── UI ──
 function setMode(m) {
   mode = m;
@@ -2493,7 +2479,7 @@ function gameLoop(timestamp) {
         humanFrameSkip = (humanFrameSkip + 1) % 4;
         if (humanFrameSkip !== 0) { render(env); return; }
       }
-      env.step(humanAction);
+      env.step(humanAction === -1 ? 0 : humanAction);
       humanScore = env.steps;
       if (humanScore > humanBest) humanBest = humanScore;
       if (env.done) { humanEpisode++; humanWaiting = true; }
