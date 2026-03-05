@@ -1326,7 +1326,7 @@ function render(env) {
 
   // ── Animate legs (only when actively playing/watching/training) ──
   const isIdle = !isTraining && !isWatching && mode !== 'human';
-  if (isIdle || env.done) {
+  if (isIdle || env.done || humanWaiting) {
     legFrame = 0;
   } else if (isWatching && nnPaused && !nnDidStep) {
     // paused: freeze legs in place (don't reset to 0)
@@ -2476,7 +2476,8 @@ function gameLoop(timestamp) {
     if (!env.done && shouldStep && !humanWaiting) {
       // Slow-mo: skip physics on some frames (still render every frame)
       if (humanSlowMo && !nnPaused) {
-        humanFrameSkip = (humanFrameSkip + 1) % 4;
+        const slowMoDivisor = isTouchDevice() ? 8 : 4;
+        humanFrameSkip = (humanFrameSkip + 1) % slowMoDivisor;
         if (humanFrameSkip !== 0) { render(env); return; }
       }
       env.step(humanAction === -1 ? 0 : humanAction);
