@@ -136,6 +136,11 @@ canvas {
   color: #f7f7f7;
 }
 
+.algo-buttons button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -404,6 +409,14 @@ canvas {
       </div>
     </div>
 
+    <div class="section" id="pole-section">
+      <h2>Pendulum</h2>
+      <div class="mode-buttons">
+        <button id="btn-single" class="active" onclick="setPoleMode('single')">SINGLE</button>
+        <button id="btn-double" onclick="setPoleMode('double')">DOUBLE</button>
+      </div>
+    </div>
+
     <div class="section" id="stats-section">
       <h2>Stats</h2>
       <div class="stats">
@@ -425,6 +438,7 @@ canvas {
         <button id="btn-reinforce" class="active" onclick="setAlgo('reinforce')">REINFORCE</button>
         <button id="btn-dqn" onclick="setAlgo('dqn')">DQN</button>
         <button id="btn-ppo" onclick="setAlgo('ppo')">PPO</button>
+        <button id="btn-neat" onclick="setAlgo('neat')">NEAT</button>
       </div>
     </div>
 
@@ -504,10 +518,74 @@ let TRAIN_MAX_STEPS = 500;
 let SOLVE_THRESHOLD = 475;
 let marathonMode = false;
 
+// ── Double Pendulum Physics ──
+const POLE2_MASS = 0.05;
+const POLE2_HALF_LEN = 0.25;
+let doublePole = false;
+let poleMode = 'single';
+
+// Solve 3x3 linear system for double pendulum on cart via Cramer's rule
+// Returns [xAcc, theta1Acc, theta2Acc]
+function solveDoublePendulum(state, force) {
+  const [x, xd, t1, t1d, t2, t2d] = state;
+  const m1 = POLE_MASS, m2 = POLE2_MASS, Mt = CART_MASS + m1 + m2;
+  const l1 = POLE_HALF_LEN, l2 = POLE2_HALF_LEN;
+  const g = GRAVITY;
+  const s1 = Math.sin(t1), c1 = Math.cos(t1);
+  const s2 = Math.sin(t2), c2 = Math.cos(t2);
+  const s12 = Math.sin(t1 - t2), c12 = Math.cos(t1 - t2);
+
+  // Effective arm lengths: pole CoM at l, pole tip at 2*l
+  const L1 = m1 * l1 + m2 * 2 * l1; // effective first-pole coupling
+
+  // Mass matrix (symmetric 3x3)
+  const a11 = Mt;
+  const a12 = L1 * c1;
+  const a13 = m2 * l2 * c2;
+  const a22 = m1 * l1 * l1 + m2 * 4 * l1 * l1;
+  const a23 = m2 * 2 * l1 * l2 * c12;
+  const a33 = m2 * l2 * l2;
+
+  // Right-hand side (Coriolis + gravity terms)
+  const b1 = force + L1 * t1d * t1d * s1 + m2 * l2 * t2d * t2d * s2;
+  const b2 = L1 * g * s1 - m2 * 2 * l1 * l2 * t2d * t2d * s12;
+  const b3 = m2 * l2 * g * s2 + m2 * 2 * l1 * l2 * t1d * t1d * s12;
+
+  // Cramer's rule for symmetric 3x3
+  const det = a11 * (a22 * a33 - a23 * a23)
+            - a12 * (a12 * a33 - a23 * a13)
+            + a13 * (a12 * a23 - a22 * a13);
+
+  const xAcc  = (b1 * (a22 * a33 - a23 * a23) - a12 * (b2 * a33 - a23 * b3) + a13 * (b2 * a23 - a22 * b3)) / det;
+  const t1Acc = (a11 * (b2 * a33 - a23 * b3) - b1 * (a12 * a33 - a23 * a13) + a13 * (a12 * b3 - b2 * a13)) / det;
+  const t2Acc = (a11 * (a22 * b3 - b2 * a23) - a12 * (a12 * b3 - b2 * a13) + b1 * (a12 * a23 - a22 * a13)) / det;
+
+  return [xAcc, t1Acc, t2Acc];
+}
+
+// RK4 integrator for double pendulum
+function rk4Step(state, force, dt) {
+  function derivs(s) {
+    const [xAcc, t1Acc, t2Acc] = solveDoublePendulum(s, force);
+    return [s[1], xAcc, s[3], t1Acc, s[5], t2Acc];
+  }
+  const k1 = derivs(state);
+  const s2 = state.map((v, i) => v + 0.5 * dt * k1[i]);
+  const k2 = derivs(s2);
+  const s3 = state.map((v, i) => v + 0.5 * dt * k2[i]);
+  const k3 = derivs(s3);
+  const s4 = state.map((v, i) => v + dt * k3[i]);
+  const k4 = derivs(s4);
+  return state.map((v, i) => v + (dt / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]));
+}
+
 class CartPoleEnv {
-  constructor(maxSteps) {
+  constructor(maxSteps, dp) {
     this.maxSteps = maxSteps || MAX_STEPS;
     this.thetaThreshold = THETA_THRESHOLD;
+    this.doublePole = !!dp;
+    this.theta2 = 0;
+    this.theta2Dot = 0;
   }
 
   reset() {
@@ -515,16 +593,23 @@ class CartPoleEnv {
     this.xDot = (Math.random() - 0.5) * 0.1;
     this.theta = (Math.random() - 0.5) * 0.1;
     this.thetaDot = (Math.random() - 0.5) * 0.1;
+    this.theta2 = this.doublePole ? (Math.random() - 0.5) * 0.1 : 0;
+    this.theta2Dot = this.doublePole ? (Math.random() - 0.5) * 0.1 : 0;
     this.steps = 0;
     this.done = false;
     return this.getState();
   }
 
   getState() {
+    if (this.doublePole) {
+      return [this.x, this.xDot, this.theta, this.thetaDot, this.theta2, this.theta2Dot];
+    }
     return [this.x, this.xDot, this.theta, this.thetaDot];
   }
 
   step(action) {
+    if (this.doublePole) return this.stepDouble(action);
+
     const force = action === 1 ? FORCE_MAG : -FORCE_MAG;
     const cosTheta = Math.cos(this.theta);
     const sinTheta = Math.sin(this.theta);
@@ -542,6 +627,23 @@ class CartPoleEnv {
 
     this.done = Math.abs(this.x) > X_THRESHOLD ||
                 Math.abs(this.theta) > this.thetaThreshold ||
+                this.steps >= this.maxSteps;
+
+    return { state: this.getState(), reward: 1.0, done: this.done };
+  }
+
+  stepDouble(action) {
+    const force = action === 1 ? FORCE_MAG : -FORCE_MAG;
+    const state = [this.x, this.xDot, this.theta, this.thetaDot, this.theta2, this.theta2Dot];
+    const ns = rk4Step(state, force, DT);
+    this.x = ns[0]; this.xDot = ns[1];
+    this.theta = ns[2]; this.thetaDot = ns[3];
+    this.theta2 = ns[4]; this.theta2Dot = ns[5];
+    this.steps++;
+
+    this.done = Math.abs(this.x) > X_THRESHOLD ||
+                Math.abs(this.theta) > this.thetaThreshold ||
+                Math.abs(this.theta2) > this.thetaThreshold ||
                 this.steps >= this.maxSteps;
 
     return { state: this.getState(), reward: 1.0, done: this.done };
@@ -668,9 +770,11 @@ class NeuralNetwork {
 
 // ── REINFORCE Agent (fixed: batch gradient accumulation) ──
 class ReinforceAgent {
-  constructor() {
-    this.net = new NeuralNetwork([4, 32, 2]);
-    this.lr = 0.005;
+  constructor(stateDim) {
+    const sd = stateDim || 4;
+    const hidden = sd === 6 ? 64 : 32;
+    this.net = new NeuralNetwork([sd, hidden, 2]);
+    this.lr = sd === 6 ? 0.003 : 0.005;
     this.gamma = 0.99;
     this.episodeRewards = [];
     this.bestReward = 0;
@@ -865,11 +969,13 @@ class QLearningAgent {
 
 // ── DQN Agent (Deep Q-Network) ──
 class DQNAgent {
-  constructor() {
-    this.net = new NeuralNetwork([4, 32, 2]);
-    this.targetNet = new NeuralNetwork([4, 32, 2]);
+  constructor(stateDim) {
+    const sd = stateDim || 4;
+    const hidden = sd === 6 ? 64 : 32;
+    this.net = new NeuralNetwork([sd, hidden, 2]);
+    this.targetNet = new NeuralNetwork([sd, hidden, 2]);
     this.copyToTarget();
-    this.lr = 0.001;
+    this.lr = sd === 6 ? 0.0008 : 0.001;
     this.gamma = 0.99;
     this.epsilon = 1.0;
     this.epsilonDecay = 0.998;
@@ -968,10 +1074,12 @@ class DQNAgent {
 
 // ── PPO Agent (Proximal Policy Optimization) ──
 class PPOAgent {
-  constructor() {
-    this.net = new NeuralNetwork([4, 32, 2]);     // policy
-    this.valueNet = new NeuralNetwork([4, 32, 1]); // value baseline
-    this.lr = 0.003;
+  constructor(stateDim) {
+    const sd = stateDim || 4;
+    const hidden = sd === 6 ? 64 : 32;
+    this.net = new NeuralNetwork([sd, hidden, 2]);     // policy
+    this.valueNet = new NeuralNetwork([sd, hidden, 1]); // value baseline
+    this.lr = sd === 6 ? 0.002 : 0.003;
     this.valueLr = 0.01;
     this.gamma = 0.99;
     this.clipEps = 0.2;
@@ -1088,27 +1196,537 @@ class PPOAgent {
   loadSnapshot(data) { deserializeNet(this.net, data); }
 }
 
-// ── Multi-Algorithm State Management ──
-const ALGOS = ['qlearning', 'reinforce', 'dqn', 'ppo'];
-const algoState = {};
-let currentAlgo = 'reinforce';
-
-function createAgent(algo) {
-  switch (algo) {
-    case 'reinforce': return new ReinforceAgent();
-    case 'qlearning': return new QLearningAgent();
-    case 'ppo': return new PPOAgent();
-    case 'dqn': return new DQNAgent();
+// ── NEAT (NeuroEvolution of Augmenting Topologies) ──
+class NEATGenome {
+  constructor() {
+    this.nodes = [];
+    this.connections = [];
+    this.fitness = 0;
+    this.adjustedFitness = 0;
+    this.species = -1;
+    this._sortedNodes = null;
+    this._connByTarget = null;
   }
 }
 
-for (const algo of ALGOS) {
-  algoState[algo] = { agent: createAgent(algo), snapshots: [], selectedEpisode: null, snapshotInterval: 50 };
+class NEATAgent {
+  constructor(stateDim) {
+    this.sd = stateDim || 4;
+    this.net = null; // no fixed-topology net — uses custom viz
+
+    this.popSize = 150;
+    this.population = [];
+    this.species = [];
+    this.generation = 0;
+    this.champion = null;
+
+    this.innovationCounter = 0;
+    this.generationInnovations = {};
+    this.nextNodeId = 0;
+
+    // NEAT hyperparameters
+    this.c1 = 1.0;
+    this.c2 = 1.0;
+    this.c3 = 0.4;
+    this.compatThreshold = 3.0;
+    this.weightMutateRate = 0.8;
+    this.weightPerturbRate = 0.9;
+    this.weightPerturbScale = 0.2;
+    this.addConnRate = 0.05;
+    this.addNodeRate = 0.03;
+    this.crossoverRate = 0.75;
+    this.stagnationLimit = 15;
+    this.survivalRate = 0.2;
+
+    this.episodeRewards = [];
+    this.bestReward = 0;
+    this.solved = false;
+
+    this._lastOutputs = null;
+    this._lastAction = null;
+    this._lastProbs = null;
+    this._lastInputs = null;
+
+    this._initPopulation();
+  }
+
+  _initPopulation() {
+    const inputIds = [];
+    for (let i = 0; i < this.sd; i++) inputIds.push(i);
+    const biasId = this.sd;
+    const outputIds = [this.sd + 1, this.sd + 2];
+    this.nextNodeId = this.sd + 3;
+
+    let innov = 0;
+    const initialInnovations = {};
+    for (const inp of [...inputIds, biasId]) {
+      for (const out of outputIds) {
+        initialInnovations[inp + '->' + out] = innov++;
+      }
+    }
+    this.innovationCounter = innov;
+
+    for (let p = 0; p < this.popSize; p++) {
+      const genome = new NEATGenome();
+      for (const id of inputIds) genome.nodes.push({ id, type: 'input', depth: 0 });
+      genome.nodes.push({ id: biasId, type: 'bias', depth: 0 });
+      for (const id of outputIds) genome.nodes.push({ id, type: 'output', depth: 1 });
+
+      for (const inp of [...inputIds, biasId]) {
+        for (const out of outputIds) {
+          genome.connections.push({
+            inNode: inp, outNode: out,
+            weight: (Math.random() - 0.5) * 2,
+            enabled: true,
+            innovation: initialInnovations[inp + '->' + out]
+          });
+        }
+      }
+      this.population.push(genome);
+    }
+
+    this.species = [{
+      id: 0, representative: this._cloneGenome(this.population[0]),
+      members: [...this.population], bestFitness: 0, stagnation: 0, lastBestFitness: 0
+    }];
+    for (const g of this.population) g.species = 0;
+    this.champion = this._cloneGenome(this.population[0]);
+  }
+
+  _activateGenome(genome, inputs) {
+    const values = new Float64Array(this.nextNodeId);
+    for (let i = 0; i < this.sd; i++) values[i] = inputs[i];
+    values[this.sd] = 1.0; // bias
+
+    if (!genome._sortedNodes) {
+      genome._sortedNodes = genome.nodes
+        .filter(n => n.type !== 'input' && n.type !== 'bias')
+        .sort((a, b) => a.depth - b.depth)
+        .map(n => n.id);
+    }
+    if (!genome._connByTarget) {
+      genome._connByTarget = {};
+      for (const conn of genome.connections) {
+        if (!conn.enabled) continue;
+        if (!genome._connByTarget[conn.outNode]) genome._connByTarget[conn.outNode] = [];
+        genome._connByTarget[conn.outNode].push(conn);
+      }
+    }
+
+    for (const nodeId of genome._sortedNodes) {
+      const conns = genome._connByTarget[nodeId];
+      if (!conns) continue;
+      let sum = 0;
+      for (const c of conns) sum += values[c.inNode] * c.weight;
+      values[nodeId] = 1 / (1 + Math.exp(-sum));
+    }
+
+    const outStart = this.sd + 1;
+    return [values[outStart], values[outStart + 1]];
+  }
+
+  selectAction(state) {
+    if (!this.champion) return { action: 0, probs: [0.5, 0.5] };
+    const outputs = this._activateGenome(this.champion, state);
+    const sum = outputs[0] + outputs[1];
+    const probs = sum > 0 ? [outputs[0] / sum, outputs[1] / sum] : [0.5, 0.5];
+    const action = outputs[0] > outputs[1] ? 0 : 1;
+    this._lastOutputs = outputs;
+    this._lastAction = action;
+    this._lastProbs = probs;
+    this._lastInputs = [...state];
+    return { action, probs };
+  }
+
+  trainEpisode(env) {
+    this.generationInnovations = {};
+
+    // Evaluate all genomes
+    for (const genome of this.population) {
+      genome.fitness = this._evaluateGenome(genome, env);
+    }
+
+    // Find champion
+    let bestFitness = 0, bestGenome = this.population[0];
+    for (const g of this.population) {
+      if (g.fitness > bestFitness) { bestFitness = g.fitness; bestGenome = g; }
+    }
+    this.champion = this._cloneGenome(bestGenome);
+
+    // Speciate, reproduce
+    this._speciate();
+    this.population = this._reproduce();
+    this.generation++;
+
+    this.episodeRewards.push(bestFitness);
+    if (bestFitness > this.bestReward) this.bestReward = bestFitness;
+
+    if (this.episodeRewards.length >= 20) {
+      const last20 = this.episodeRewards.slice(-20);
+      if (last20.reduce((a, b) => a + b) / 20 >= SOLVE_THRESHOLD) this.solved = true;
+    }
+    return bestFitness;
+  }
+
+  _evaluateGenome(genome, env) {
+    let state = env.reset();
+    let totalReward = 0;
+    while (!env.done) {
+      const outputs = this._activateGenome(genome, state);
+      const action = outputs[0] > outputs[1] ? 0 : 1;
+      const result = env.step(action);
+      totalReward += result.reward;
+      state = result.state;
+    }
+    return totalReward;
+  }
+
+  _speciate() {
+    for (const sp of this.species) sp.members = [];
+
+    for (const genome of this.population) {
+      let placed = false;
+      for (const sp of this.species) {
+        if (this._compatDistance(genome, sp.representative) < this.compatThreshold) {
+          sp.members.push(genome);
+          genome.species = sp.id;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        const newId = this.species.length > 0 ? Math.max(...this.species.map(s => s.id)) + 1 : 0;
+        const newSp = {
+          id: newId, representative: this._cloneGenome(genome),
+          members: [genome], bestFitness: 0, stagnation: 0, lastBestFitness: 0
+        };
+        this.species.push(newSp);
+        genome.species = newId;
+      }
+    }
+
+    this.species = this.species.filter(sp => sp.members.length > 0);
+
+    for (const sp of this.species) {
+      sp.representative = this._cloneGenome(sp.members[Math.floor(Math.random() * sp.members.length)]);
+      const best = Math.max(...sp.members.map(g => g.fitness));
+      if (best > sp.lastBestFitness) {
+        sp.lastBestFitness = best;
+        sp.bestFitness = best;
+        sp.stagnation = 0;
+      } else {
+        sp.stagnation++;
+      }
+    }
+
+    // Dynamic threshold
+    if (this.species.length < 3) this.compatThreshold -= 0.3;
+    else if (this.species.length > 10) this.compatThreshold += 0.3;
+    this.compatThreshold = Math.max(0.5, this.compatThreshold);
+  }
+
+  _compatDistance(g1, g2) {
+    const c1 = g1.connections, c2 = g2.connections;
+    if (c1.length === 0 && c2.length === 0) return 0;
+    const s1 = c1.slice().sort((a, b) => a.innovation - b.innovation);
+    const s2 = c2.slice().sort((a, b) => a.innovation - b.innovation);
+    let excess = 0, disjoint = 0, matchCount = 0, weightDiff = 0;
+    let i = 0, j = 0;
+    while (i < s1.length && j < s2.length) {
+      if (s1[i].innovation === s2[j].innovation) {
+        matchCount++; weightDiff += Math.abs(s1[i].weight - s2[j].weight);
+        i++; j++;
+      } else if (s1[i].innovation < s2[j].innovation) { disjoint++; i++; }
+      else { disjoint++; j++; }
+    }
+    excess = (s1.length - i) + (s2.length - j);
+    const N = Math.max(c1.length, c2.length);
+    const normN = N < 20 ? 1 : N;
+    const avgW = matchCount > 0 ? weightDiff / matchCount : 0;
+    return (this.c1 * excess / normN) + (this.c2 * disjoint / normN) + (this.c3 * avgW);
+  }
+
+  _reproduce() {
+    const newPop = [];
+
+    // Fitness sharing
+    for (const sp of this.species) {
+      for (const g of sp.members) g.adjustedFitness = g.fitness / sp.members.length;
+    }
+
+    const totalAdj = this.population.reduce((s, g) => s + g.adjustedFitness, 0);
+
+    // Remove stagnant species (keep best)
+    const bestSp = this.species.reduce((b, sp) => sp.bestFitness > b.bestFitness ? sp : b, this.species[0]);
+    const active = this.species.filter(sp => sp.stagnation < this.stagnationLimit || sp === bestSp);
+
+    // Elitism: champion of each species with 5+ members
+    for (const sp of active) {
+      sp.members.sort((a, b) => b.fitness - a.fitness);
+      if (sp.members.length >= 5) newPop.push(this._cloneGenome(sp.members[0]));
+    }
+
+    // Fill rest with offspring
+    while (newPop.length < this.popSize) {
+      // Pick species weighted by adjusted fitness
+      const sp = this._pickSpecies(active);
+      const survivalCut = Math.max(1, Math.floor(sp.members.length * this.survivalRate));
+      const parents = sp.members.slice(0, survivalCut);
+
+      let child;
+      if (Math.random() < this.crossoverRate && parents.length >= 2) {
+        const p1 = parents[Math.floor(Math.random() * parents.length)];
+        const p2 = parents[Math.floor(Math.random() * parents.length)];
+        child = this._crossover(p1, p2);
+      } else {
+        child = this._cloneGenome(parents[Math.floor(Math.random() * parents.length)]);
+      }
+      this._mutate(child);
+      newPop.push(child);
+    }
+
+    return newPop.slice(0, this.popSize);
+  }
+
+  _pickSpecies(active) {
+    const totals = active.map(sp => sp.members.reduce((s, g) => s + g.adjustedFitness, 0));
+    const sum = totals.reduce((a, b) => a + b, 0);
+    let r = Math.random() * sum;
+    for (let i = 0; i < active.length; i++) {
+      r -= totals[i];
+      if (r <= 0) return active[i];
+    }
+    return active[active.length - 1];
+  }
+
+  _crossover(p1, p2) {
+    if (p2.fitness > p1.fitness) { const tmp = p1; p1 = p2; p2 = tmp; }
+    const child = new NEATGenome();
+    const map1 = {}, map2 = {};
+    for (const c of p1.connections) map1[c.innovation] = c;
+    for (const c of p2.connections) map2[c.innovation] = c;
+    const allInnov = new Set([...p1.connections.map(c => c.innovation), ...p2.connections.map(c => c.innovation)]);
+    const usedNodes = new Set();
+
+    for (const innov of allInnov) {
+      const c1 = map1[innov], c2 = map2[innov];
+      if (c1 && c2) {
+        const chosen = Math.random() < 0.5 ? c1 : c2;
+        const enabled = (!c1.enabled || !c2.enabled) ? (Math.random() > 0.25) : chosen.enabled;
+        child.connections.push({ ...chosen, enabled });
+      } else if (c1) {
+        child.connections.push({ ...c1 });
+      }
+      if (child.connections.length > 0) {
+        const last = child.connections[child.connections.length - 1];
+        usedNodes.add(last.inNode);
+        usedNodes.add(last.outNode);
+      }
+    }
+
+    const childNodeIds = new Set();
+    for (const node of p1.nodes) {
+      if (usedNodes.has(node.id) || node.type === 'input' || node.type === 'bias' || node.type === 'output') {
+        child.nodes.push({ ...node });
+        childNodeIds.add(node.id);
+      }
+    }
+    for (const node of p2.nodes) {
+      if (usedNodes.has(node.id) && !childNodeIds.has(node.id)) {
+        child.nodes.push({ ...node });
+      }
+    }
+    return child;
+  }
+
+  _mutate(genome) {
+    genome._sortedNodes = null;
+    genome._connByTarget = null;
+
+    if (Math.random() < this.weightMutateRate) {
+      for (const conn of genome.connections) {
+        if (Math.random() < this.weightPerturbRate) {
+          conn.weight += (Math.random() - 0.5) * 2 * this.weightPerturbScale;
+        } else {
+          conn.weight = (Math.random() - 0.5) * 2;
+        }
+      }
+    }
+    if (Math.random() < this.addConnRate) this._mutateAddConnection(genome);
+    if (Math.random() < this.addNodeRate) this._mutateAddNode(genome);
+  }
+
+  _mutateAddConnection(genome) {
+    const possibleIn = genome.nodes.filter(n => n.type !== 'output');
+    const possibleOut = genome.nodes.filter(n => n.type !== 'input' && n.type !== 'bias');
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const inNode = possibleIn[Math.floor(Math.random() * possibleIn.length)];
+      const outNode = possibleOut[Math.floor(Math.random() * possibleOut.length)];
+      if (inNode.id === outNode.id) continue;
+      if (inNode.depth >= outNode.depth) continue;
+      if (genome.connections.some(c => c.inNode === inNode.id && c.outNode === outNode.id)) continue;
+
+      const key = inNode.id + '->' + outNode.id;
+      if (this.generationInnovations[key] === undefined) {
+        this.generationInnovations[key] = this.innovationCounter++;
+      }
+      genome.connections.push({
+        inNode: inNode.id, outNode: outNode.id,
+        weight: (Math.random() - 0.5) * 2, enabled: true,
+        innovation: this.generationInnovations[key]
+      });
+      return;
+    }
+  }
+
+  _mutateAddNode(genome) {
+    const enabled = genome.connections.filter(c => c.enabled);
+    if (enabled.length === 0) return;
+    const conn = enabled[Math.floor(Math.random() * enabled.length)];
+    conn.enabled = false;
+
+    const inObj = genome.nodes.find(n => n.id === conn.inNode);
+    const outObj = genome.nodes.find(n => n.id === conn.outNode);
+    const newDepth = (inObj.depth + outObj.depth) / 2;
+    const newId = this.nextNodeId++;
+    genome.nodes.push({ id: newId, type: 'hidden', depth: newDepth });
+
+    const key1 = conn.inNode + '->' + newId;
+    const key2 = newId + '->' + conn.outNode;
+    if (this.generationInnovations[key1] === undefined)
+      this.generationInnovations[key1] = this.innovationCounter++;
+    if (this.generationInnovations[key2] === undefined)
+      this.generationInnovations[key2] = this.innovationCounter++;
+
+    genome.connections.push({
+      inNode: conn.inNode, outNode: newId, weight: 1.0, enabled: true,
+      innovation: this.generationInnovations[key1]
+    });
+    genome.connections.push({
+      inNode: newId, outNode: conn.outNode, weight: conn.weight, enabled: true,
+      innovation: this.generationInnovations[key2]
+    });
+  }
+
+  _cloneGenome(genome) {
+    const clone = new NEATGenome();
+    clone.nodes = genome.nodes.map(n => ({ ...n }));
+    clone.connections = genome.connections.map(c => ({ ...c }));
+    clone.fitness = genome.fitness;
+    clone.species = genome.species;
+    return clone;
+  }
+
+  _serializeGenome(genome) {
+    return {
+      nodes: genome.nodes,
+      connections: genome.connections.map(c => ({
+        i: c.inNode, o: c.outNode, w: c.weight, e: c.enabled ? 1 : 0, n: c.innovation
+      })),
+      fitness: genome.fitness, species: genome.species
+    };
+  }
+
+  _deserializeGenome(data) {
+    const g = new NEATGenome();
+    g.nodes = data.nodes;
+    g.connections = data.connections.map(c => ({
+      inNode: c.i, outNode: c.o, weight: c.w, enabled: !!c.e, innovation: c.n
+    }));
+    g.fitness = data.fitness || 0;
+    g.species = data.species || -1;
+    return g;
+  }
+
+  serialize() {
+    return {
+      generation: this.generation,
+      innovationCounter: this.innovationCounter,
+      nextNodeId: this.nextNodeId,
+      compatThreshold: this.compatThreshold,
+      champion: this.champion ? this._serializeGenome(this.champion) : null,
+      population: this.population.map(g => this._serializeGenome(g)),
+      species: this.species.map(sp => ({
+        id: sp.id, representative: this._serializeGenome(sp.representative),
+        bestFitness: sp.bestFitness, stagnation: sp.stagnation, lastBestFitness: sp.lastBestFitness
+      })),
+      episodeRewards: this.episodeRewards,
+      bestReward: this.bestReward,
+      solved: this.solved
+    };
+  }
+
+  load(data) {
+    this.generation = data.generation || 0;
+    this.innovationCounter = data.innovationCounter || 0;
+    this.nextNodeId = data.nextNodeId || 0;
+    this.compatThreshold = data.compatThreshold || 3.0;
+    if (data.champion) this.champion = this._deserializeGenome(data.champion);
+    if (data.population) {
+      this.population = data.population.map(g => this._deserializeGenome(g));
+    }
+    if (data.species) {
+      this.species = data.species.map(sp => ({
+        id: sp.id, representative: this._deserializeGenome(sp.representative),
+        members: [], bestFitness: sp.bestFitness, stagnation: sp.stagnation, lastBestFitness: sp.lastBestFitness
+      }));
+      // Re-assign members
+      for (const g of this.population) {
+        const sp = this.species.find(s => s.id === g.species);
+        if (sp) sp.members.push(g);
+      }
+    }
+    this.episodeRewards = data.episodeRewards || [];
+    this.bestReward = data.bestReward || 0;
+    this.solved = !!data.solved;
+  }
+
+  takeSnapshot() {
+    return this.champion ? {
+      champion: this._serializeGenome(this.champion),
+      generation: this.generation
+    } : null;
+  }
+
+  loadSnapshot(data) {
+    if (data.champion) this.champion = this._deserializeGenome(data.champion);
+    if (data.generation != null) this.generation = data.generation;
+  }
 }
+
+// ── Multi-Algorithm State Management ──
+const ALGOS = ['qlearning', 'reinforce', 'dqn', 'ppo', 'neat'];
+const ALGOS_DOUBLE = ['reinforce', 'dqn', 'ppo', 'neat'];
+const algoState = {};
+let currentAlgo = 'reinforce';
+
+function getAlgos() { return doublePole ? ALGOS_DOUBLE : ALGOS; }
+function stateDim() { return doublePole ? 6 : 4; }
+function storageKey(algo) { return 'cartpole-' + poleMode + '-' + algo; }
+
+function createAgent(algo) {
+  const sd = stateDim();
+  switch (algo) {
+    case 'reinforce': return new ReinforceAgent(sd);
+    case 'qlearning': return new QLearningAgent();
+    case 'ppo': return new PPOAgent(sd);
+    case 'neat': return new NEATAgent(sd);
+    case 'dqn': return new DQNAgent(sd);
+  }
+}
+
+function initAlgoState() {
+  const algos = getAlgos();
+  for (const key of Object.keys(algoState)) delete algoState[key];
+  for (const algo of algos) {
+    algoState[algo] = { agent: createAgent(algo), snapshots: [], selectedEpisode: null, snapshotInterval: 50 };
+  }
+}
+initAlgoState();
 
 // ── Weight Snapshots (for clickable chart time-travel) ──
 // Max snapshots: NN ~5KB each → 30 × 5KB = 150KB; Q-table ~80KB each → 10 × 80KB = 800KB
-const MAX_SNAPSHOTS = { qlearning: 10, reinforce: 30, ppo: 30, dqn: 30 };
+const MAX_SNAPSHOTS = { qlearning: 10, reinforce: 30, ppo: 30, dqn: 30, neat: 30 };
 const BASE_SNAPSHOT_INTERVAL = 50;
 let weightSnapshots = algoState[currentAlgo].snapshots;
 let snapshotInterval = algoState[currentAlgo].snapshotInterval;
@@ -1156,12 +1774,12 @@ function saveAgent() {
       snapshots: weightSnapshots,
       snapshotInterval: algoState[currentAlgo].snapshotInterval
     };
-    localStorage.setItem('cartpole-' + currentAlgo, JSON.stringify(data));
+    localStorage.setItem(storageKey(currentAlgo), JSON.stringify(data));
   } catch (e) {
     // Quota exceeded — try saving without snapshots
     try {
       const data = { agent: agent.serialize(), snapshots: [] };
-      localStorage.setItem('cartpole-' + currentAlgo, JSON.stringify(data));
+      localStorage.setItem(storageKey(currentAlgo), JSON.stringify(data));
     } catch (e2) {
       // Still failing — try saving with trimmed episode rewards
       try {
@@ -1174,7 +1792,7 @@ function saveAgent() {
           trimmed.push(...r.slice(-100));
           ser.episodeRewards = trimmed;
         }
-        localStorage.setItem('cartpole-' + currentAlgo, JSON.stringify({ agent: ser, snapshots: [] }));
+        localStorage.setItem(storageKey(currentAlgo), JSON.stringify({ agent: ser, snapshots: [] }));
       } catch (e3) { console.warn('Save failed:', e3); }
     }
   }
@@ -1182,7 +1800,7 @@ function saveAgent() {
 
 function loadAlgo(algo) {
   try {
-    const raw = localStorage.getItem('cartpole-' + algo);
+    const raw = localStorage.getItem(storageKey(algo));
     if (!raw) return false;
     const data = JSON.parse(raw);
     const agentData = data.agent || data;
@@ -1205,7 +1823,7 @@ function loadAlgo(algo) {
 }
 
 function clearSavedAgent() {
-  localStorage.removeItem('cartpole-' + currentAlgo);
+  localStorage.removeItem(storageKey(currentAlgo));
   weightSnapshots = [];
   selectedEpisode = null;
   snapshotInterval = BASE_SNAPSHOT_INTERVAL;
@@ -1427,6 +2045,31 @@ function render(env) {
   ctx.arc(poleEndX, poleEndY, 3, 0, Math.PI * 2);
   ctx.fill();
 
+  // ── Second pole (double pendulum mode) ──
+  if (env.doublePole) {
+    const pole2Len = 65;
+    const pole2EndX = poleEndX + Math.sin(env.theta2) * pole2Len;
+    const pole2EndY = poleEndY - Math.cos(env.theta2) * pole2Len;
+
+    ctx.strokeStyle = '#535353';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(poleEndX, poleEndY);
+    ctx.lineTo(pole2EndX, pole2EndY);
+    ctx.stroke();
+
+    // Second pole tip
+    ctx.fillStyle = '#535353';
+    ctx.beginPath();
+    ctx.arc(pole2EndX, pole2EndY, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f7f7f7';
+    ctx.beginPath();
+    ctx.arc(pole2EndX, pole2EndY, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // Pivot dot
   ctx.fillStyle = '#535353';
   ctx.beginPath();
@@ -1633,8 +2276,12 @@ function renderOneNet(ctx, net, ox, w, ch, cfg) {
   const r = 4;
   const titleH = cfg.title ? 10 : 0;
   const rowY = [22 + titleH, 68 + titleH / 2, 118 + titleH / 3];
-  const inputLabels = ['x', 'ẋ', 'θ', 'θ̇'];
-  const inputRanges = [2.4, 3.0, 0.21, 3.0];
+  const inputLabels = nInput === 6
+    ? ['x', 'ẋ', 'θ₁', 'θ̇₁', 'θ₂', 'θ̇₂']
+    : ['x', 'ẋ', 'θ', 'θ̇'];
+  const inputRanges = nInput === 6
+    ? [2.4, 3.0, 0.21, 3.0, 0.21, 3.0]
+    : [2.4, 3.0, 0.21, 3.0];
   const margin = cfg.dual ? 24 : 60;
   const fontSize = cfg.dual ? '10px' : '13px';
 
@@ -1783,6 +2430,144 @@ function renderOneNet(ctx, net, ox, w, ch, cfg) {
   }
 }
 
+function renderNEATGenome(cw, ch) {
+  const genome = agent.champion;
+  if (!genome) {
+    nnCtx.fillStyle = '#cacaca';
+    nnCtx.font = '10px "Press Start 2P", monospace';
+    nnCtx.textAlign = 'center';
+    nnCtx.fillText('No champion yet', cw / 2, ch / 2);
+    return;
+  }
+
+  const inputLabels = agent.sd === 6
+    ? ['x', 'ẋ', 'θ₁', 'θ̇₁', 'θ₂', 'θ̇₂']
+    : ['x', 'ẋ', 'θ', 'θ̇'];
+  const outputLabels = ['←', '→'];
+
+  const inputNodes = genome.nodes.filter(n => n.type === 'input');
+  const biasNode = genome.nodes.find(n => n.type === 'bias');
+  const hiddenNodes = genome.nodes.filter(n => n.type === 'hidden');
+  const outputNodes = genome.nodes.filter(n => n.type === 'output');
+
+  // Compute node positions
+  const pad = { top: 28, bottom: 30, left: 45, right: 20 };
+  const drawW = cw - pad.left - pad.right;
+  const drawH = ch - pad.top - pad.bottom;
+
+  const nodePos = {};
+  const allInputs = [...inputNodes, biasNode].filter(Boolean);
+  const nIn = allInputs.length;
+  for (let i = 0; i < nIn; i++) {
+    nodePos[allInputs[i].id] = {
+      x: pad.left + (i + 0.5) * drawW / nIn,
+      y: pad.top
+    };
+  }
+  for (let i = 0; i < outputNodes.length; i++) {
+    nodePos[outputNodes[i].id] = {
+      x: pad.left + drawW * 0.35 + i * drawW * 0.3,
+      y: pad.top + drawH
+    };
+  }
+
+  // Hidden nodes positioned by depth, spread horizontally
+  if (hiddenNodes.length > 0) {
+    const depthGroups = {};
+    for (const n of hiddenNodes) {
+      const d = n.depth.toFixed(3);
+      if (!depthGroups[d]) depthGroups[d] = [];
+      depthGroups[d].push(n);
+    }
+    for (const d in depthGroups) {
+      const group = depthGroups[d];
+      const depthVal = parseFloat(d);
+      const y = pad.top + depthVal * drawH;
+      for (let i = 0; i < group.length; i++) {
+        nodePos[group[i].id] = {
+          x: pad.left + (i + 0.5) * drawW / group.length,
+          y
+        };
+      }
+    }
+  }
+
+  // Draw connections
+  for (const conn of genome.connections) {
+    if (!conn.enabled) continue;
+    const from = nodePos[conn.inNode];
+    const to = nodePos[conn.outNode];
+    if (!from || !to) continue;
+    const w = Math.abs(conn.weight);
+    nnCtx.strokeStyle = conn.weight >= 0 ? 'rgba(100,100,100,' + Math.min(0.8, 0.15 + w * 0.4) + ')'
+      : 'rgba(200,50,50,' + Math.min(0.8, 0.15 + w * 0.4) + ')';
+    nnCtx.lineWidth = Math.max(0.5, Math.min(3, w * 1.5));
+    nnCtx.beginPath();
+    nnCtx.moveTo(from.x, from.y);
+    nnCtx.lineTo(to.x, to.y);
+    nnCtx.stroke();
+  }
+
+  // Draw nodes
+  const r = 7;
+  for (const node of genome.nodes) {
+    const pos = nodePos[node.id];
+    if (!pos) continue;
+    nnCtx.beginPath();
+    nnCtx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+    nnCtx.fillStyle = node.type === 'input' ? '#4a90d9'
+      : node.type === 'bias' ? '#999'
+      : node.type === 'output' ? '#e67e22' : '#2ecc71';
+    nnCtx.fill();
+    nnCtx.strokeStyle = '#fff';
+    nnCtx.lineWidth = 1.5;
+    nnCtx.stroke();
+  }
+
+  // Input labels
+  nnCtx.fillStyle = '#555';
+  nnCtx.font = '8px "Press Start 2P", monospace';
+  nnCtx.textAlign = 'center';
+  for (let i = 0; i < inputNodes.length; i++) {
+    const pos = nodePos[inputNodes[i].id];
+    nnCtx.fillText(inputLabels[i], pos.x, pos.y - r - 3);
+  }
+  if (biasNode) {
+    const pos = nodePos[biasNode.id];
+    nnCtx.fillText('b', pos.x, pos.y - r - 3);
+  }
+
+  // Output labels with probabilities
+  const probs = agent._lastProbs || [0.5, 0.5];
+  for (let i = 0; i < outputNodes.length; i++) {
+    const pos = nodePos[outputNodes[i].id];
+    nnCtx.fillStyle = '#333';
+    nnCtx.font = '9px "Press Start 2P", monospace';
+    nnCtx.fillText(outputLabels[i], pos.x, pos.y + r + 12);
+    nnCtx.fillStyle = '#888';
+    nnCtx.font = '7px monospace';
+    nnCtx.fillText((probs[i] * 100).toFixed(0) + '%', pos.x, pos.y + r + 22);
+  }
+
+  // Row labels
+  nnCtx.fillStyle = '#cacaca';
+  nnCtx.font = '5px "Press Start 2P", monospace';
+  nnCtx.textAlign = 'right';
+  nnCtx.fillText('INPUT', pad.left - 10, pad.top + 2);
+  if (hiddenNodes.length > 0) nnCtx.fillText('HIDDEN', pad.left - 10, pad.top + drawH * 0.5 + 2);
+  nnCtx.fillText('OUTPUT', pad.left - 10, pad.top + drawH + 2);
+
+  // Info bar at bottom
+  nnCtx.fillStyle = '#999';
+  nnCtx.font = '7px monospace';
+  nnCtx.textAlign = 'center';
+  const info = 'Gen ' + agent.generation + '  |  ' +
+    agent.species.length + ' species  |  ' +
+    genome.nodes.length + ' nodes  |  ' +
+    genome.connections.filter(c => c.enabled).length + ' conns';
+  nnCtx.fillText(info, cw / 2, ch - 3);
+}
+
 function renderNN() {
   const net = agent.net;
   const cw = nnCanvas.width;
@@ -1791,6 +2576,7 @@ function renderNN() {
   nnCtx.fillStyle = '#f7f7f7';
   nnCtx.fillRect(0, 0, cw, ch);
 
+  if (currentAlgo === 'neat') { renderNEATGenome(cw, ch); return; }
   if (!net) { renderQTable(cw, ch); return; }
 
   const secondNet = agent.valueNet || agent.targetNet || null;
@@ -1970,16 +2756,24 @@ env.thetaThreshold = THETA_THRESHOLD_VISUAL;
 try {
   const oldRaw = localStorage.getItem('cartpole-agent');
   if (oldRaw) {
-    if (!localStorage.getItem('cartpole-reinforce')) {
-      localStorage.setItem('cartpole-reinforce', oldRaw);
+    if (!localStorage.getItem('cartpole-single-reinforce')) {
+      localStorage.setItem('cartpole-single-reinforce', oldRaw);
     }
     localStorage.removeItem('cartpole-agent');
+  }
+  // Migrate pre-pole-mode saves (cartpole-algo → cartpole-single-algo)
+  for (const algo of ALGOS) {
+    const old = localStorage.getItem('cartpole-' + algo);
+    if (old && !localStorage.getItem('cartpole-single-' + algo)) {
+      localStorage.setItem('cartpole-single-' + algo, old);
+      localStorage.removeItem('cartpole-' + algo);
+    }
   }
 } catch (e) {}
 
 // Restore saved agents on startup
 let anyLoaded = false;
-for (const algo of ALGOS) {
+for (const algo of getAlgos()) {
   if (loadAlgo(algo)) {
     console.log('Restored ' + algo + ': ' + algoState[algo].agent.episodeRewards.length + ' episodes');
     const st = algoState[algo];
@@ -2077,6 +2871,13 @@ const ALGO_INFO = {
     links: [['Nature paper', 'https://www.nature.com/articles/nature14236'], ['DeepMind blog', 'https://deepmind.google/discover/blog/deep-reinforcement-learning/']],
     funFact: 'DQN achieved <b>human-level play</b> on 29 of 49 Atari games from raw pixels alone, kickstarting the deep RL revolution and leading to DeepMind\'s acquisition by Google.',
   },
+  neat: {
+    title: 'NEAT',
+    history: 'Introduced by <b>Kenneth Stanley & Risto Miikkulainen</b> at UT Austin in 2002. NEAT showed that evolving both network topology and weights outperforms fixed-topology neuroevolution, especially on the double pole balancing benchmark.',
+    algorithm: 'Evolves a population of 150 neural networks with variable topology. Starts minimal (direct input\u2192output) and complexifies via mutation: adding connections (5%) and splitting them into new nodes (3%). Uses <b>innovation numbers</b> for crossover alignment and <b>speciation</b> to protect new structures from competition with optimized ones.',
+    links: [['NEAT paper', 'https://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf'], ['Original page', 'https://www.cs.ucf.edu/~kstanley/neat.html']],
+    funFact: 'NEAT was the first algorithm to solve the <b>double pole balancing without velocity</b> benchmark \u2014 a problem that had stumped the field for years. It did this by evolving topology, not just weights.',
+  },
 };
 
 const CARTPOLE_INFO = {
@@ -2087,9 +2888,34 @@ const CARTPOLE_INFO = {
   funFact: 'CartPole is the "Hello, World" of reinforcement learning. Despite its simplicity, balancing it requires a <b>dynamic closed-loop policy</b> — the same core challenge behind bipedal robots, drone stabilization, and rocket booster landings.',
 };
 
+const DOUBLE_CARTPOLE_INFO = {
+  title: 'Double CartPole',
+  history: 'The double inverted pendulum extends the classic CartPole with a second pole hinged at the tip of the first. This problem was a flagship benchmark for neuroevolution (<b>NEAT</b>) in the 2000s and is fundamentally harder because the dynamics are <b>chaotic</b>.',
+  description: 'A cart with <b>two poles</b> hinged in series must keep both balanced. The second pole is lighter and shorter, creating a coupled, nonlinear system. The episode ends if either pole falls, the cart leaves the track, or you survive <b>5000 steps</b>.',
+  links: [['Double pendulum (Wikipedia)', 'https://en.wikipedia.org/wiki/Double_pendulum'], ['NEAT paper', 'https://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf']],
+  funFact: 'The double pendulum is one of the simplest physical systems that exhibits <b>true mathematical chaos</b>. Tiny differences in initial conditions lead to wildly different trajectories — the same property that makes weather prediction so difficult.',
+};
+
+function updateNNKey() {
+  const nnKey = document.querySelector('.nn-key');
+  if (!nnKey) return;
+  const labels = doublePole
+    ? '<span><b>x</b> Cart Position</span><span><b>ẋ</b> Cart Velocity</span><span><b>θ₁</b> Pole 1 Angle</span><span><b>θ̇₁</b> Pole 1 Speed</span><span><b>θ₂</b> Pole 2 Angle</span><span><b>θ̇₂</b> Pole 2 Speed</span>'
+    : '<span><b>x</b> Cart Position</span><span><b>ẋ</b> Cart Velocity</span><span><b>θ</b> Pole Angle</span><span><b>θ̇</b> Pole Speed</span>';
+  if (currentAlgo === 'neat') {
+    nnKey.innerHTML = labels +
+      '<span class="nn-key-sep"></span><span><b>←</b> Push Left</span><span><b>→</b> Push Right</span>' +
+      '<span class="nn-key-sep"></span><span><i class="nn-swatch" style="background:#666"></i> Positive</span><span><i class="nn-swatch" style="background:#c83232"></i> Negative</span><span>Weight = thickness</span>';
+    return;
+  }
+  nnKey.innerHTML = labels +
+    '<span class="nn-key-sep"></span><span><b>←</b> Push Left</span><span><b>→</b> Push Right</span>' +
+    '<span class="nn-key-sep"></span><span><i class="nn-swatch nn-pos"></i> Positive</span><span><i class="nn-swatch nn-neg"></i> Negative</span><span><i class="nn-swatch nn-act"></i> Activation</span>';
+}
+
 function updateExplainText(algo) {
   if (algo === 'human') {
-    const info = CARTPOLE_INFO;
+    const info = doublePole ? DOUBLE_CARTPOLE_INFO : CARTPOLE_INFO;
     document.getElementById('explain-title').textContent = info.title;
     const links = info.links.map(l => '<a href="' + l[1] + '" target="_blank" class="explain-link">' + l[0] + '</a>').join(' · ');
     document.getElementById('explain-text').innerHTML =
@@ -2115,6 +2941,7 @@ updateExplainText('human');
 
 function setAlgo(name) {
   if (name === currentAlgo) return;
+  if (doublePole && name === 'qlearning') return;
   stopTraining();
   isWatching = false;
   currentWeightsBackup = null;
@@ -2133,18 +2960,79 @@ function setAlgo(name) {
 
   // Update buttons
   for (const algo of ALGOS) {
-    document.getElementById('btn-' + algo).classList.toggle('active', algo === name);
+    const btn = document.getElementById('btn-' + algo);
+    btn.classList.toggle('active', algo === name);
+    btn.disabled = doublePole && algo === 'qlearning';
   }
 
-  document.getElementById('nn-title').textContent = name === 'qlearning' ? 'Q-Table' : 'Neural Network';
+  document.getElementById('nn-title').textContent = name === 'qlearning' ? 'Q-Table'
+    : name === 'neat' ? 'Evolved Topology' : 'Neural Network';
   // Resize NN canvas for Q-table (needs more vertical space for 4D grid)
-  nnCanvas.height = name === 'qlearning' ? 500 : 155;
+  nnCanvas.height = name === 'qlearning' ? 500 : name === 'neat' ? 220 : 155;
+  updateNNKey();
   updateExplainText(name);
   updateStats();
   updateButtons();
   if (mode === 'ai') renderChart(agent.episodeRewards);
   renderNN();
   env.reset();
+}
+
+function setPoleMode(mode) {
+  if (mode === poleMode) return;
+  stopTraining();
+  isWatching = false;
+  currentWeightsBackup = null;
+
+  // Save current state
+  saveAllAlgos();
+
+  // Switch mode
+  poleMode = mode;
+  doublePole = mode === 'double';
+
+  // If current algo is qlearning and switching to double, switch to reinforce
+  if (doublePole && currentAlgo === 'qlearning') {
+    currentAlgo = 'reinforce';
+  }
+
+  // Rebuild algoState for new mode
+  initAlgoState();
+
+  // Load from localStorage
+  for (const algo of getAlgos()) {
+    loadAlgo(algo);
+  }
+
+  // Update globals
+  agent = algoState[currentAlgo].agent;
+  weightSnapshots = algoState[currentAlgo].snapshots;
+  snapshotInterval = algoState[currentAlgo].snapshotInterval;
+  selectedEpisode = null;
+
+  // Rebuild env
+  env.doublePole = doublePole;
+  env.reset();
+  env.thetaThreshold = THETA_THRESHOLD_VISUAL;
+
+  // Update UI
+  document.getElementById('btn-single').classList.toggle('active', poleMode === 'single');
+  document.getElementById('btn-double').classList.toggle('active', poleMode === 'double');
+  for (const algo of ALGOS) {
+    const btn = document.getElementById('btn-' + algo);
+    btn.classList.toggle('active', algo === currentAlgo);
+    btn.disabled = doublePole && algo === 'qlearning';
+    btn.title = (doublePole && algo === 'qlearning') ? '6D state too large for tabular method' : '';
+  }
+
+  document.getElementById('nn-title').textContent = currentAlgo === 'qlearning' ? 'Q-Table' : 'Neural Network';
+  nnCanvas.height = currentAlgo === 'qlearning' ? 500 : 155;
+  updateNNKey();
+  updateExplainText(mode === 'human' ? 'human' : currentAlgo);
+  updateButtons();
+  updateStats();
+  renderChart(agent.episodeRewards);
+  renderNN();
 }
 
 function updateStats() {
@@ -2212,7 +3100,7 @@ function startTraining() {
   env.thetaThreshold = THETA_THRESHOLD;
   updateButtons();
 
-  const trainEnv = new CartPoleEnv(TRAIN_MAX_STEPS);
+  const trainEnv = new CartPoleEnv(TRAIN_MAX_STEPS, doublePole);
   trainEnv.maxSteps = TRAIN_MAX_STEPS; // ensure current setting is used
 
   let lastSnapshotEp = weightSnapshots.length > 0
@@ -2223,10 +3111,15 @@ function startTraining() {
     if (!isTraining) return;
 
     // Use a time budget: train as many episodes as fit in budget
+    // NEAT runs 1 generation per batch (evaluates entire population, may exceed budget)
     const budget = 40;
     const deadline = performance.now() + budget;
     let count = 0;
-    while (performance.now() < deadline) {
+    if (currentAlgo === 'neat') {
+      agent.trainEpisode(trainEnv);
+      count = 1;
+    }
+    while (currentAlgo !== 'neat' && performance.now() < deadline) {
       agent.trainEpisode(trainEnv);
       count++;
 
@@ -2257,11 +3150,15 @@ function startTraining() {
     env.xDot = trainEnv.xDot;
     env.theta = trainEnv.theta;
     env.thetaDot = trainEnv.thetaDot;
+    if (doublePole) {
+      env.theta2 = trainEnv.theta2;
+      env.theta2Dot = trainEnv.theta2Dot;
+    }
     env.steps = trainEnv.steps;
     env.done = trainEnv.done;
 
     // Populate NN activations for viz during training
-    if (agent.net) {
+    if (agent.net || currentAlgo === 'neat') {
       const s = env.getState();
       agent.selectAction(s);
       if (agent.valueNet) {
@@ -2342,7 +3239,7 @@ function togglePause() {
   // Preview next action when pausing in watch mode
   if (nnPaused && isWatching && !env.done) {
     agent.selectAction(env.getState());
-    nnPendingAction = agent.net ? agent.net.lastAction : null;
+    nnPendingAction = agent.net ? agent.net.lastAction : agent._lastAction != null ? agent._lastAction : null;
   } else {
     nnPendingAction = null;
   }
@@ -2514,7 +3411,7 @@ function gameLoop(timestamp) {
       if (!env.done) {
         const curState = env.getState();
         agent.selectAction(curState);
-        nnPendingAction = agent.net ? agent.net.lastAction : null;
+        nnPendingAction = agent.net ? agent.net.lastAction : agent._lastAction != null ? agent._lastAction : null;
         // Populate secondary net activations for dual viz
         if (agent.valueNet) {
           const va = agent.valueNet.forward(curState);
@@ -2541,8 +3438,8 @@ function saveAllAlgos() {
   algoState[currentAlgo].agent = agent;
   algoState[currentAlgo].snapshots = weightSnapshots;
   const origAlgo = currentAlgo, origAgent = agent, origSnaps = weightSnapshots;
-  for (const algo of ALGOS) {
-    if (algoState[algo].agent.episodeRewards.length > 0) {
+  for (const algo of getAlgos()) {
+    if (algoState[algo] && algoState[algo].agent.episodeRewards.length > 0) {
       currentAlgo = algo; agent = algoState[algo].agent; weightSnapshots = algoState[algo].snapshots;
       saveAgent();
     }
