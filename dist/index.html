@@ -2476,7 +2476,7 @@ function gameLoop(timestamp) {
     if (!env.done && shouldStep && !humanWaiting) {
       // Slow-mo: skip physics on some frames (still render every frame)
       if (humanSlowMo && !nnPaused) {
-        const slowMoDivisor = isTouchDevice() ? 6 : 4;
+        const slowMoDivisor = isTouchDevice() ? 5 : 4;
         humanFrameSkip = (humanFrameSkip + 1) % slowMoDivisor;
         if (humanFrameSkip !== 0) { render(env); return; }
       }
