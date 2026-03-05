@@ -2994,6 +2994,7 @@ function setAlgo(name) {
     const btn = document.getElementById('btn-' + algo);
     btn.classList.toggle('active', algo === name);
     btn.disabled = doublePole && algo === 'qlearning';
+    btn.title = (doublePole && algo === 'qlearning') ? 'Tabular Q-learning can\u2019t handle 6D state \u2014 the table would need millions of entries' : '';
   }
 
   document.getElementById('nn-title').textContent = name === 'qlearning' ? 'Q-Table'
@@ -3053,7 +3054,7 @@ function setPoleMode(mode) {
     const btn = document.getElementById('btn-' + algo);
     btn.classList.toggle('active', algo === currentAlgo);
     btn.disabled = doublePole && algo === 'qlearning';
-    btn.title = (doublePole && algo === 'qlearning') ? '6D state too large for tabular method' : '';
+    btn.title = (doublePole && algo === 'qlearning') ? 'Tabular Q-learning can\u2019t handle 6D state \u2014 the table would need millions of entries' : '';
   }
 
   document.getElementById('nn-title').textContent = currentAlgo === 'qlearning' ? 'Q-Table' : 'Neural Network';
